@@ -32,3 +32,7 @@ Package manager is pinned via `packageManager: pnpm@11.16.0` in `package.json`; 
 
 - Turborepo (`turbo.json`) defines the task graph: `build` depends on upstream builds (`^build`), `test` depends on `^build`, `lint` depends on `^lint`, and `dev` is a non-cached persistent task.
 - There is no shared package between the two apps yet — no `packages/` workspace exists.
+
+## Keeping documentation in sync
+
+Whenever a change alters the project's architecture — new app/package added to the workspace, a shared package introduced, module/folder structure reorganized, new inter-app dependency, or a core framework/tooling swap — update the relevant `CLAUDE.md` (this file and/or `apps/*/CLAUDE.md`) in the same change so it keeps reflecting the actual structure. Do not leave documentation describing a stale architecture.
