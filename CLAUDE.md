@@ -1,0 +1,34 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Repository structure
+
+This is a pnpm/Turborepo monorepo with two apps:
+
+- `apps/api` — NestJS backend (see `apps/api/CLAUDE.md`)
+- `apps/web` — Next.js frontend (see `apps/web/CLAUDE.md`)
+
+Both apps are currently fresh framework scaffolds (`nest new` / `create-next-app`) with no custom code yet.
+
+## Commands
+
+Run from the repo root (uses Turborepo to fan out to both apps):
+
+```bash
+pnpm dev            # run both apps in dev mode
+pnpm build          # build both apps
+pnpm lint           # lint both apps
+pnpm test           # run tests in both apps (api only has tests currently)
+pnpm format         # prettier --write across the repo
+pnpm format:check   # prettier --check across the repo
+```
+
+To target a single app, use pnpm's `--filter`, e.g. `pnpm --filter api test` or `pnpm --filter web dev`, or `cd` into `apps/api` / `apps/web` and use the commands documented in that app's `CLAUDE.md`.
+
+Package manager is pinned via `packageManager: pnpm@11.16.0` in `package.json`; workspace packages are declared in `pnpm-workspace.yaml` (`apps/*`).
+
+## Architecture
+
+- Turborepo (`turbo.json`) defines the task graph: `build` depends on upstream builds (`^build`), `test` depends on `^build`, `lint` depends on `^lint`, and `dev` is a non-cached persistent task.
+- There is no shared package between the two apps yet — no `packages/` workspace exists.
