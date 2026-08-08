@@ -1,0 +1,29 @@
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { AuthenticatedUser, CurrentUser } from '../auth/current-user.decorator';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CreateMeetingDto } from './dto/create-meeting.dto';
+import { MeetingService } from './meeting.service';
+
+@UseGuards(JwtAuthGuard)
+@Controller('meetings')
+export class MeetingController {
+  constructor(private readonly meetingService: MeetingService) {}
+
+  @Post()
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateMeetingDto,
+  ) {
+    return this.meetingService.create(user.id, dto);
+  }
+
+  @Get()
+  findAll(@CurrentUser() user: AuthenticatedUser) {
+    return this.meetingService.findAllForUser(user.id);
+  }
+
+  @Get(':id')
+  findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.meetingService.findOne(id, user.id);
+  }
+}

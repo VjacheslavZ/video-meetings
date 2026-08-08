@@ -44,6 +44,9 @@ importers:
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
+      jose:
+        specifier: ^6.2.8
+        version: 6.2.8
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
