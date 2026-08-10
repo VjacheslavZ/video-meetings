@@ -15,6 +15,10 @@ describe('MeetingService', () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
     };
+    meetingParticipant: {
+      findUnique: jest.Mock;
+      update: jest.Mock;
+    };
   };
 
   const ownerId = 'user-1';
@@ -37,6 +41,10 @@ describe('MeetingService', () => {
         create: jest.fn(),
         findMany: jest.fn(),
         findFirst: jest.fn(),
+      },
+      meetingParticipant: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
       },
     };
 
@@ -244,6 +252,89 @@ describe('MeetingService', () => {
         },
         include: { participants: { include: { user: true } } },
       });
+    });
+  });
+
+  describe('acceptInvitation', () => {
+    it('updates the current user status to ACCEPTED and returns the mapped meeting', async () => {
+      const participant = { id: 'participant-1', status: 'PENDING' };
+      prisma.meetingParticipant.findUnique.mockResolvedValue(participant);
+      prisma.meetingParticipant.update.mockResolvedValue({
+        ...participant,
+        status: 'ACCEPTED',
+      });
+      const meeting = {
+        id: 'meeting-1',
+        ownerId: 'another-user',
+        participants: [
+          participantRow({ id: ownerId, email: 'me@example.com' }, 'ACCEPTED'),
+        ],
+      };
+      prisma.meeting.findFirst.mockResolvedValue(meeting);
+
+      const result = await service.acceptInvitation('meeting-1', ownerId);
+
+      expect(prisma.meetingParticipant.findUnique).toHaveBeenCalledWith({
+        where: {
+          meetingId_userId: { meetingId: 'meeting-1', userId: ownerId },
+        },
+      });
+      expect(prisma.meetingParticipant.update).toHaveBeenCalledWith({
+        where: { id: participant.id },
+        data: { status: 'ACCEPTED' },
+      });
+      expect(result).toMatchObject({
+        role: 'PARTICIPANT',
+        myStatus: 'ACCEPTED',
+      });
+    });
+
+    it('throws NotFoundException when the user has no invitation on the meeting', async () => {
+      prisma.meetingParticipant.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.acceptInvitation('meeting-1', ownerId),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.meetingParticipant.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('declineInvitation', () => {
+    it('updates the current user status to DECLINED and returns the mapped meeting', async () => {
+      const participant = { id: 'participant-1', status: 'PENDING' };
+      prisma.meetingParticipant.findUnique.mockResolvedValue(participant);
+      prisma.meetingParticipant.update.mockResolvedValue({
+        ...participant,
+        status: 'DECLINED',
+      });
+      const meeting = {
+        id: 'meeting-1',
+        ownerId: 'another-user',
+        participants: [
+          participantRow({ id: ownerId, email: 'me@example.com' }, 'DECLINED'),
+        ],
+      };
+      prisma.meeting.findFirst.mockResolvedValue(meeting);
+
+      const result = await service.declineInvitation('meeting-1', ownerId);
+
+      expect(prisma.meetingParticipant.update).toHaveBeenCalledWith({
+        where: { id: participant.id },
+        data: { status: 'DECLINED' },
+      });
+      expect(result).toMatchObject({
+        role: 'PARTICIPANT',
+        myStatus: 'DECLINED',
+      });
+    });
+
+    it('throws NotFoundException when the user has no invitation on the meeting', async () => {
+      prisma.meetingParticipant.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.declineInvitation('meeting-1', ownerId),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.meetingParticipant.update).not.toHaveBeenCalled();
     });
   });
 });

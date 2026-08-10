@@ -12,6 +12,8 @@ describe('MeetingController', () => {
     create: jest.Mock;
     findAllForUser: jest.Mock;
     findOne: jest.Mock;
+    acceptInvitation: jest.Mock;
+    declineInvitation: jest.Mock;
   };
 
   const currentUser: AuthenticatedUser = {
@@ -24,6 +26,8 @@ describe('MeetingController', () => {
       create: jest.fn(),
       findAllForUser: jest.fn(),
       findOne: jest.fn(),
+      acceptInvitation: jest.fn(),
+      declineInvitation: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -89,6 +93,56 @@ describe('MeetingController', () => {
 
       await expect(
         controller.findOne(currentUser, 'missing-id'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('accept', () => {
+    it("accepts the current user's invitation to the meeting", async () => {
+      const meeting = { id: 'meeting-1', myStatus: 'ACCEPTED' };
+      meetingService.acceptInvitation.mockResolvedValue(meeting);
+
+      const result = await controller.accept(currentUser, 'meeting-1');
+
+      expect(meetingService.acceptInvitation).toHaveBeenCalledWith(
+        'meeting-1',
+        currentUser.id,
+      );
+      expect(result).toBe(meeting);
+    });
+
+    it('propagates a NotFoundException when there is no invitation to accept', async () => {
+      meetingService.acceptInvitation.mockRejectedValue(
+        new NotFoundException('Invitation not found'),
+      );
+
+      await expect(
+        controller.accept(currentUser, 'meeting-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('decline', () => {
+    it("declines the current user's invitation to the meeting", async () => {
+      const meeting = { id: 'meeting-1', myStatus: 'DECLINED' };
+      meetingService.declineInvitation.mockResolvedValue(meeting);
+
+      const result = await controller.decline(currentUser, 'meeting-1');
+
+      expect(meetingService.declineInvitation).toHaveBeenCalledWith(
+        'meeting-1',
+        currentUser.id,
+      );
+      expect(result).toBe(meeting);
+    });
+
+    it('propagates a NotFoundException when there is no invitation to decline', async () => {
+      meetingService.declineInvitation.mockRejectedValue(
+        new NotFoundException('Invitation not found'),
+      );
+
+      await expect(
+        controller.decline(currentUser, 'meeting-1'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

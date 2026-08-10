@@ -27,4 +27,14 @@ export class MeetingController {
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.meetingService.findOne(id, user.id);
   }
+
+  @Post(':id/accept')
+  accept(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.meetingService.acceptInvitation(id, user.id);
+  }
+
+  @Post(':id/decline')
+  decline(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.meetingService.declineInvitation(id, user.id);
+  }
 }

@@ -25,12 +25,12 @@
 **Affects:** backend
 **Tasks:**
 
-- [ ] Add `POST /meetings/:id/accept` and `POST /meetings/:id/decline` endpoints behind `JwtAuthGuard`, updating the `MeetingParticipant` status for the current user only.
-- [ ] Reject accept/decline attempts from a user with no `MeetingParticipant` row on that meeting (404/403), and reject attempts to act on another user's invitation.
-- [ ] Unit tests for the accept/decline service logic and controller (including the rejection cases).
-- [ ] E2E tests: an invited user accepts and their status becomes `ACCEPTED`; a different invited user declines and their status becomes `DECLINED`; a user cannot alter another user's invitation status.
+- [x] Add `POST /meetings/:id/accept` and `POST /meetings/:id/decline` endpoints behind `JwtAuthGuard`, updating the `MeetingParticipant` status for the current user only.
+- [x] Reject accept/decline attempts from a user with no `MeetingParticipant` row on that meeting (404/403), and reject attempts to act on another user's invitation.
+- [x] Unit tests for the accept/decline service logic and controller (including the rejection cases).
+- [x] E2E tests: an invited user accepts and their status becomes `ACCEPTED`; a different invited user declines and their status becomes `DECLINED`; a user cannot alter another user's invitation status.
 
-**Done when:** An invited user can flip their own status between `PENDING`/`ACCEPTED`/`DECLINED` via the API, and cannot affect any other user's invitation.
+**Done when:** An invited user can flip their own status between `PENDING`/`ACCEPTED`/`DECLINED` via the API, and cannot affect any other user's invitation. ✅ Done.
 
 ### Phase 3: Owner-managed invites after creation
 

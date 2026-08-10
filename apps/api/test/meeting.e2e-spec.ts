@@ -267,4 +267,135 @@ describe('Meetings (e2e)', () => {
         .expect(401);
     });
   });
+
+  describe('POST /meetings/:id/accept', () => {
+    it('sets the invited participant status to ACCEPTED', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      const response = await request(app.getHttpServer())
+        .post(`/meetings/${id}/accept`)
+        .set('Authorization', `Bearer ${invitee.accessToken}`)
+        .expect(201);
+
+      expect(response.body).toMatchObject({ id, myStatus: 'ACCEPTED' });
+
+      const getResponse = await request(app.getHttpServer())
+        .get(`/meetings/${id}`)
+        .set('Authorization', `Bearer ${invitee.accessToken}`)
+        .expect(200);
+      expect(getResponse.body).toMatchObject({ myStatus: 'ACCEPTED' });
+    });
+
+    it("does not affect another invited participant's status on the same meeting", async () => {
+      const owner = await registerUser();
+      const inviteeA = await registerUser();
+      const inviteeB = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([inviteeA.email, inviteeB.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      await request(app.getHttpServer())
+        .post(`/meetings/${id}/accept`)
+        .set('Authorization', `Bearer ${inviteeA.accessToken}`)
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .get(`/meetings/${id}`)
+        .set('Authorization', `Bearer ${inviteeB.accessToken}`)
+        .expect(200);
+      expect(response.body).toMatchObject({ myStatus: 'PENDING' });
+    });
+
+    it('rejects when the current user has no invitation on the meeting', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const unrelated = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      await request(app.getHttpServer())
+        .post(`/meetings/${id}/accept`)
+        .set('Authorization', `Bearer ${unrelated.accessToken}`)
+        .expect(404);
+    });
+
+    it('rejects when the current user is the meeting owner, not an invitee', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      await request(app.getHttpServer())
+        .post(`/meetings/${id}/accept`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(404);
+    });
+
+    it('rejects requests without an access token', async () => {
+      await request(app.getHttpServer())
+        .post(`/meetings/${randomUUID()}/accept`)
+        .expect(401);
+    });
+  });
+
+  describe('POST /meetings/:id/decline', () => {
+    it('sets the invited participant status to DECLINED', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      const response = await request(app.getHttpServer())
+        .post(`/meetings/${id}/decline`)
+        .set('Authorization', `Bearer ${invitee.accessToken}`)
+        .expect(201);
+
+      expect(response.body).toMatchObject({ id, myStatus: 'DECLINED' });
+    });
+
+    it('rejects when the current user has no invitation on the meeting', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const unrelated = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      await request(app.getHttpServer())
+        .post(`/meetings/${id}/decline`)
+        .set('Authorization', `Bearer ${unrelated.accessToken}`)
+        .expect(404);
+    });
+
+    it('rejects requests without an access token', async () => {
+      await request(app.getHttpServer())
+        .post(`/meetings/${randomUUID()}/decline`)
+        .expect(401);
+    });
+  });
 });

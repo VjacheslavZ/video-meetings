@@ -3,7 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Meeting, MeetingParticipant, User } from '@prisma/client';
+import {
+  Meeting,
+  MeetingParticipant,
+  ParticipationStatus,
+  User,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
 
@@ -61,6 +66,42 @@ export class MeetingService {
       throw new NotFoundException('Meeting not found');
     }
     return this.toResponse(meeting, userId);
+  }
+
+  acceptInvitation(meetingId: string, userId: string) {
+    return this.respondToInvitation(
+      meetingId,
+      userId,
+      ParticipationStatus.ACCEPTED,
+    );
+  }
+
+  declineInvitation(meetingId: string, userId: string) {
+    return this.respondToInvitation(
+      meetingId,
+      userId,
+      ParticipationStatus.DECLINED,
+    );
+  }
+
+  private async respondToInvitation(
+    meetingId: string,
+    userId: string,
+    status: ParticipationStatus,
+  ) {
+    const participant = await this.prisma.meetingParticipant.findUnique({
+      where: { meetingId_userId: { meetingId, userId } },
+    });
+    if (!participant) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    await this.prisma.meetingParticipant.update({
+      where: { id: participant.id },
+      data: { status },
+    });
+
+    return this.findOne(meetingId, userId);
   }
 
   private async resolveParticipantUsers(emails: string[]) {
