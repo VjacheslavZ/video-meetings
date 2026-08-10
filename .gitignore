@@ -35,6 +35,8 @@ yarn-error.log*
 
 # misc
 *.tsbuildinfo
+__pycache__/
+*.pyc
 
 # claude code
 .claude/worktrees/

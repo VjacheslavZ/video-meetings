@@ -8,6 +8,7 @@ Run from `apps/api/` (or via `pnpm --filter api <script>` from the repo root):
 
 ```bash
 pnpm start           # run compiled app
+pnpm dev             # run with watch mode (alias for start:dev, used by root `pnpm dev` via Turborepo)
 pnpm start:dev        # run with watch mode (nest start --watch)
 pnpm start:debug       # watch mode + --inspect debugger
 pnpm build            # nest build
