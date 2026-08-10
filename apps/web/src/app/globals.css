@@ -9,18 +9,14 @@
  * margin utility in the app.
  */
 @layer base {
-  :root {
-    --background: #ffffff;
-    --foreground: #171717;
-  }
-
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --background: #0a0a0a;
-      --foreground: #ededed;
-      color-scheme: dark;
-    }
-  }
+  /*
+   * --background/--foreground are already defined by @heroui/styles for both
+   * the light (:root) and dark (.dark / [data-theme="dark"]) themes. HeroUI's
+   * dark theme is opt-in via a class/attribute, not `prefers-color-scheme` —
+   * redefining these here behind a media query fought the theme layer for the
+   * same variable names and made text flip to light colors under a dark OS
+   * preference while surfaces (Card, inputs) stayed light, tanking contrast.
+   */
 
   * {
     box-sizing: border-box;

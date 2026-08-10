@@ -9,16 +9,53 @@ import {
   FieldError,
   Form,
   Input,
+  InputGroup,
   Label,
   Link,
   TextField,
 } from '@heroui/react';
 import { ApiError, registerUser } from '@/lib/api';
 
+function EyeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function EyeOffIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <path d="M6.61 6.61A18.5 18.5 0 0 0 1 12s4 8 11 8a9.26 9.26 0 0 0 5.39-1.61" />
+      <line x1="2" y1="2" x2="22" y2="22" />
+    </svg>
+  );
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -75,13 +112,25 @@ export default function RegisterPage() {
                   </Alert>
                 ) : null}
 
-                <TextField isRequired fullWidth name="name" type="text">
+                <TextField
+                  isRequired
+                  fullWidth
+                  name="name"
+                  type="text"
+                  autoComplete="name"
+                >
                   <Label>Name</Label>
                   <Input placeholder="Jane Doe" variant="secondary" />
                   <FieldError />
                 </TextField>
 
-                <TextField isRequired fullWidth name="email" type="email">
+                <TextField
+                  isRequired
+                  fullWidth
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                >
                   <Label>Email</Label>
                   <Input placeholder="jane@example.com" variant="secondary" />
                   <FieldError />
@@ -90,18 +139,38 @@ export default function RegisterPage() {
                 <TextField
                   isRequired
                   fullWidth
-                  minLength={8}
                   name="password"
-                  type="password"
+                  autoComplete="new-password"
                   validate={(value) => {
-                    if (value.length < 8) {
+                    if (value.length > 0 && value.length < 8) {
                       return 'Password must be at least 8 characters';
                     }
                     return null;
                   }}
                 >
                   <Label>Password</Label>
-                  <Input placeholder="••••••••" variant="secondary" />
+                  <InputGroup fullWidth variant="secondary">
+                    <InputGroup.Input
+                      type={isPasswordVisible ? 'text' : 'password'}
+                    />
+                    <InputGroup.Suffix className="pr-0">
+                      <Button
+                        isIconOnly
+                        aria-label={
+                          isPasswordVisible ? 'Hide password' : 'Show password'
+                        }
+                        size="sm"
+                        variant="ghost"
+                        onPress={() => setIsPasswordVisible((v) => !v)}
+                      >
+                        {isPasswordVisible ? (
+                          <EyeOffIcon className="size-4" />
+                        ) : (
+                          <EyeIcon className="size-4" />
+                        )}
+                      </Button>
+                    </InputGroup.Suffix>
+                  </InputGroup>
                   <FieldError />
                 </TextField>
               </div>
