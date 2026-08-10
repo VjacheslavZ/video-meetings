@@ -19,7 +19,9 @@ Run from the repo root (uses Turborepo to fan out to both apps):
 pnpm dev            # run both apps in dev mode
 pnpm build          # build both apps
 pnpm lint           # lint both apps
-pnpm test           # run tests in both apps (api only has tests currently)
+pnpm test           # run unit tests in both apps (api only has tests currently)
+pnpm test:e2e       # run e2e tests in both apps (requires `docker compose up -d postgres` for api)
+pnpm test:all       # run both unit and e2e tests in both apps
 pnpm format         # prettier --write across the repo
 pnpm format:check   # prettier --check across the repo
 ```
