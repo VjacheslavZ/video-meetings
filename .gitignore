@@ -38,3 +38,7 @@ yarn-error.log*
 
 # claude code
 .claude/worktrees/
+
+# playwright mcp screenshots/snapshots
+.playwright-mcp/
+/*.png
