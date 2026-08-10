@@ -398,4 +398,170 @@ describe('Meetings (e2e)', () => {
         .expect(401);
     });
   });
+
+  describe('POST /meetings/:id/participants', () => {
+    it('lets the owner invite an additional registered user as pending', async () => {
+      const owner = await registerUser();
+      const inviteeA = await registerUser();
+      const inviteeB = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([inviteeA.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      const response = await request(app.getHttpServer())
+        .post(`/meetings/${id}/participants`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ participants: [inviteeB.email] })
+        .expect(201);
+
+      const meeting = response.body as MeetingResponse;
+      expect(meeting.participants).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ email: inviteeA.email }),
+          expect.objectContaining({ email: inviteeB.email, status: 'PENDING' }),
+        ]),
+      );
+      expect(meeting.participants).toHaveLength(2);
+    });
+
+    it('does not duplicate a participant who is already invited', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      const response = await request(app.getHttpServer())
+        .post(`/meetings/${id}/participants`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ participants: [invitee.email] })
+        .expect(201);
+
+      expect((response.body as MeetingResponse).participants).toHaveLength(1);
+    });
+
+    it('rejects an invite to an email with no registered user', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      await request(app.getHttpServer())
+        .post(`/meetings/${id}/participants`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ participants: ['unknown@example.com'] })
+        .expect(400);
+    });
+
+    it('rejects when the current user is not the meeting owner', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const outsider = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      await request(app.getHttpServer())
+        .post(`/meetings/${id}/participants`)
+        .set('Authorization', `Bearer ${invitee.accessToken}`)
+        .send({ participants: [outsider.email] })
+        .expect(403);
+    });
+
+    it('returns 404 when the meeting does not exist', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+
+      await request(app.getHttpServer())
+        .post(`/meetings/${randomUUID()}/participants`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send({ participants: [invitee.email] })
+        .expect(404);
+    });
+
+    it('rejects requests without an access token', async () => {
+      await request(app.getHttpServer())
+        .post(`/meetings/${randomUUID()}/participants`)
+        .send({ participants: ['a@example.com'] })
+        .expect(401);
+    });
+  });
+
+  describe('DELETE /meetings/:id/participants/:userId', () => {
+    it('lets the owner remove a participant, revoking their access', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id, participants } = createResponse.body as MeetingResponse;
+      const inviteeUserId = participants[0].userId;
+
+      const response = await request(app.getHttpServer())
+        .delete(`/meetings/${id}/participants/${inviteeUserId}`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(200);
+      expect((response.body as MeetingResponse).participants).toHaveLength(0);
+
+      await request(app.getHttpServer())
+        .get(`/meetings/${id}`)
+        .set('Authorization', `Bearer ${invitee.accessToken}`)
+        .expect(404);
+    });
+
+    it('returns 404 when the participant does not exist on the meeting', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const notInvited = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      await request(app.getHttpServer())
+        .delete(`/meetings/${id}/participants/${notInvited.email}`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(404);
+    });
+
+    it('rejects when the current user is not the meeting owner', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id, participants } = createResponse.body as MeetingResponse;
+      const inviteeUserId = participants[0].userId;
+
+      await request(app.getHttpServer())
+        .delete(`/meetings/${id}/participants/${inviteeUserId}`)
+        .set('Authorization', `Bearer ${invitee.accessToken}`)
+        .expect(403);
+    });
+
+    it('rejects requests without an access token', async () => {
+      await request(app.getHttpServer())
+        .delete(`/meetings/${randomUUID()}/participants/${randomUUID()}`)
+        .expect(401);
+    });
+  });
 });

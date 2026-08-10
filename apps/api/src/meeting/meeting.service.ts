@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -82,6 +83,56 @@ export class MeetingService {
       userId,
       ParticipationStatus.DECLINED,
     );
+  }
+
+  async addParticipants(meetingId: string, ownerId: string, emails: string[]) {
+    const meeting = await this.getOwnedMeeting(meetingId, ownerId);
+
+    const uniqueEmails = [...new Set(emails)];
+    const users = await this.resolveParticipantUsers(uniqueEmails);
+    const existingUserIds = new Set(meeting.participants.map((p) => p.userId));
+    const newUsers = users.filter((user) => !existingUserIds.has(user.id));
+
+    if (newUsers.length > 0) {
+      await this.prisma.meetingParticipant.createMany({
+        data: newUsers.map((user) => ({ meetingId, userId: user.id })),
+      });
+    }
+
+    return this.findOne(meetingId, ownerId);
+  }
+
+  async removeParticipant(
+    meetingId: string,
+    ownerId: string,
+    participantUserId: string,
+  ) {
+    await this.getOwnedMeeting(meetingId, ownerId);
+
+    const { count } = await this.prisma.meetingParticipant.deleteMany({
+      where: { meetingId, userId: participantUserId },
+    });
+    if (count === 0) {
+      throw new NotFoundException('Participant not found');
+    }
+
+    return this.findOne(meetingId, ownerId);
+  }
+
+  private async getOwnedMeeting(meetingId: string, ownerId: string) {
+    const meeting = await this.prisma.meeting.findUnique({
+      where: { id: meetingId },
+      include: participantsInclude,
+    });
+    if (!meeting) {
+      throw new NotFoundException('Meeting not found');
+    }
+    if (meeting.ownerId !== ownerId) {
+      throw new ForbiddenException(
+        'Only the meeting owner can manage participants',
+      );
+    }
+    return meeting;
   }
 
   private async respondToInvitation(

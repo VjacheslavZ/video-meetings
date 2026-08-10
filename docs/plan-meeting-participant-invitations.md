@@ -38,12 +38,12 @@
 **Affects:** backend
 **Tasks:**
 
-- [ ] Add `POST /meetings/:id/participants` (owner-only, same email-resolution/validation/dedupe rules as Phase 1's create-time invite) to add a new `PENDING` participant to an existing meeting.
-- [ ] Add `DELETE /meetings/:id/participants/:userId` (owner-only) to remove a participant, after which that user loses access via `findOne`/`findAllForUser`.
-- [ ] Enforce that only the meeting's owner can call either endpoint; a non-owner (including an accepted participant) gets rejected.
-- [ ] Unit + e2e tests: owner adds a participant post-creation; owner removes a participant and the removed user no longer sees or can access the meeting; non-owner invite/remove attempts are rejected.
+- [x] Add `POST /meetings/:id/participants` (owner-only, same email-resolution/validation/dedupe rules as Phase 1's create-time invite) to add a new `PENDING` participant to an existing meeting.
+- [x] Add `DELETE /meetings/:id/participants/:userId` (owner-only) to remove a participant, after which that user loses access via `findOne`/`findAllForUser`.
+- [x] Enforce that only the meeting's owner can call either endpoint; a non-owner (including an accepted participant) gets rejected.
+- [x] Unit + e2e tests: owner adds a participant post-creation; owner removes a participant and the removed user no longer sees or can access the meeting; non-owner invite/remove attempts are rejected.
 
-**Done when:** The owner can fully manage a meeting's participant list after creation, and no non-owner can invite or remove participants.
+**Done when:** The owner can fully manage a meeting's participant list after creation, and no non-owner can invite or remove participants. ✅ Done.
 
 ### Phase 4: Web — create meeting and meeting list
 

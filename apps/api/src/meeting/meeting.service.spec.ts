@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { MeetingService } from './meeting.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
@@ -14,10 +18,13 @@ describe('MeetingService', () => {
       create: jest.Mock;
       findMany: jest.Mock;
       findFirst: jest.Mock;
+      findUnique: jest.Mock;
     };
     meetingParticipant: {
       findUnique: jest.Mock;
       update: jest.Mock;
+      createMany: jest.Mock;
+      deleteMany: jest.Mock;
     };
   };
 
@@ -41,10 +48,13 @@ describe('MeetingService', () => {
         create: jest.fn(),
         findMany: jest.fn(),
         findFirst: jest.fn(),
+        findUnique: jest.fn(),
       },
       meetingParticipant: {
         findUnique: jest.fn(),
         update: jest.fn(),
+        createMany: jest.fn(),
+        deleteMany: jest.fn(),
       },
     };
 
@@ -335,6 +345,152 @@ describe('MeetingService', () => {
         service.declineInvitation('meeting-1', ownerId),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.meetingParticipant.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('addParticipants', () => {
+    it('invites resolved users not already on the meeting', async () => {
+      const owned = {
+        id: 'meeting-1',
+        ownerId,
+        participants: [participantRow(participantA)],
+      };
+      prisma.meeting.findUnique.mockResolvedValue(owned);
+      prisma.user.findMany.mockResolvedValue([participantA, participantB]);
+      prisma.meetingParticipant.createMany.mockResolvedValue({ count: 1 });
+      prisma.meeting.findFirst.mockResolvedValue({
+        ...owned,
+        participants: [
+          participantRow(participantA),
+          participantRow(participantB),
+        ],
+      });
+
+      const result = await service.addParticipants('meeting-1', ownerId, [
+        participantA.email,
+        participantB.email,
+      ]);
+
+      expect(prisma.meeting.findUnique).toHaveBeenCalledWith({
+        where: { id: 'meeting-1' },
+        include: { participants: { include: { user: true } } },
+      });
+      expect(prisma.meetingParticipant.createMany).toHaveBeenCalledWith({
+        data: [{ meetingId: 'meeting-1', userId: participantB.id }],
+      });
+      expect(result.participants).toHaveLength(2);
+    });
+
+    it('does not call createMany when every resolved user is already a participant', async () => {
+      const owned = {
+        id: 'meeting-1',
+        ownerId,
+        participants: [participantRow(participantA)],
+      };
+      prisma.meeting.findUnique.mockResolvedValue(owned);
+      prisma.user.findMany.mockResolvedValue([participantA]);
+      prisma.meeting.findFirst.mockResolvedValue(owned);
+
+      await service.addParticipants('meeting-1', ownerId, [participantA.email]);
+
+      expect(prisma.meetingParticipant.createMany).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the meeting does not exist', async () => {
+      prisma.meeting.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.addParticipants('missing-id', ownerId, [participantA.email]),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when the current user is not the meeting owner', async () => {
+      prisma.meeting.findUnique.mockResolvedValue({
+        id: 'meeting-1',
+        ownerId: 'another-user',
+        participants: [],
+      });
+
+      await expect(
+        service.addParticipants('meeting-1', ownerId, [participantA.email]),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.user.findMany).not.toHaveBeenCalled();
+    });
+
+    it('rejects when an invited email has no matching registered user', async () => {
+      prisma.meeting.findUnique.mockResolvedValue({
+        id: 'meeting-1',
+        ownerId,
+        participants: [],
+      });
+      prisma.user.findMany.mockResolvedValue([]);
+
+      await expect(
+        service.addParticipants('meeting-1', ownerId, ['unknown@example.com']),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.meetingParticipant.createMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeParticipant', () => {
+    it('deletes the participant and returns the updated meeting', async () => {
+      prisma.meeting.findUnique.mockResolvedValue({
+        id: 'meeting-1',
+        ownerId,
+        participants: [participantRow(participantA)],
+      });
+      prisma.meetingParticipant.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.meeting.findFirst.mockResolvedValue({
+        id: 'meeting-1',
+        ownerId,
+        participants: [],
+      });
+
+      const result = await service.removeParticipant(
+        'meeting-1',
+        ownerId,
+        participantA.id,
+      );
+
+      expect(prisma.meetingParticipant.deleteMany).toHaveBeenCalledWith({
+        where: { meetingId: 'meeting-1', userId: participantA.id },
+      });
+      expect(result.participants).toHaveLength(0);
+    });
+
+    it('throws NotFoundException when the participant does not exist', async () => {
+      prisma.meeting.findUnique.mockResolvedValue({
+        id: 'meeting-1',
+        ownerId,
+        participants: [],
+      });
+      prisma.meetingParticipant.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(
+        service.removeParticipant('meeting-1', ownerId, participantA.id),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throws ForbiddenException when the current user is not the meeting owner', async () => {
+      prisma.meeting.findUnique.mockResolvedValue({
+        id: 'meeting-1',
+        ownerId: 'another-user',
+        participants: [],
+      });
+
+      await expect(
+        service.removeParticipant('meeting-1', ownerId, participantA.id),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.meetingParticipant.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the meeting does not exist', async () => {
+      prisma.meeting.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.removeParticipant('missing-id', ownerId, participantA.id),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 });

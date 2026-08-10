@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { MeetingController } from './meeting.controller';
 import { MeetingService } from './meeting.service';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
+import { AddParticipantsDto } from './dto/add-participants.dto';
 import { AuthenticatedUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -14,6 +15,8 @@ describe('MeetingController', () => {
     findOne: jest.Mock;
     acceptInvitation: jest.Mock;
     declineInvitation: jest.Mock;
+    addParticipants: jest.Mock;
+    removeParticipant: jest.Mock;
   };
 
   const currentUser: AuthenticatedUser = {
@@ -28,6 +31,8 @@ describe('MeetingController', () => {
       findOne: jest.fn(),
       acceptInvitation: jest.fn(),
       declineInvitation: jest.fn(),
+      addParticipants: jest.fn(),
+      removeParticipant: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -143,6 +148,83 @@ describe('MeetingController', () => {
 
       await expect(
         controller.decline(currentUser, 'meeting-1'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('addParticipants', () => {
+    it("invites the given emails to the current user's meeting", async () => {
+      const dto: AddParticipantsDto = { participants: ['a@example.com'] };
+      const meeting = { id: 'meeting-1', participants: [] };
+      meetingService.addParticipants.mockResolvedValue(meeting);
+
+      const result = await controller.addParticipants(
+        currentUser,
+        'meeting-1',
+        dto,
+      );
+
+      expect(meetingService.addParticipants).toHaveBeenCalledWith(
+        'meeting-1',
+        currentUser.id,
+        dto.participants,
+      );
+      expect(result).toBe(meeting);
+    });
+
+    it('propagates a ForbiddenException when the current user is not the owner', async () => {
+      meetingService.addParticipants.mockRejectedValue(
+        new ForbiddenException(
+          'Only the meeting owner can manage participants',
+        ),
+      );
+
+      await expect(
+        controller.addParticipants(currentUser, 'meeting-1', {
+          participants: ['a@example.com'],
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('removeParticipant', () => {
+    it("removes the given participant from the current user's meeting", async () => {
+      const meeting = { id: 'meeting-1', participants: [] };
+      meetingService.removeParticipant.mockResolvedValue(meeting);
+
+      const result = await controller.removeParticipant(
+        currentUser,
+        'meeting-1',
+        'user-a',
+      );
+
+      expect(meetingService.removeParticipant).toHaveBeenCalledWith(
+        'meeting-1',
+        currentUser.id,
+        'user-a',
+      );
+      expect(result).toBe(meeting);
+    });
+
+    it('propagates a ForbiddenException when the current user is not the owner', async () => {
+      meetingService.removeParticipant.mockRejectedValue(
+        new ForbiddenException(
+          'Only the meeting owner can manage participants',
+        ),
+      );
+
+      await expect(
+        controller.removeParticipant(currentUser, 'meeting-1', 'user-a'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('propagates a NotFoundException when the participant does not exist', async () => {
+      meetingService.removeParticipant.mockRejectedValue(
+        new NotFoundException('Participant not found'),
+      );
+
+      await expect(
+        controller.removeParticipant(currentUser, 'meeting-1', 'user-a'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

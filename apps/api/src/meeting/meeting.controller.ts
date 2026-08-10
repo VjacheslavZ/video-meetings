@@ -1,7 +1,16 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AddParticipantsDto } from './dto/add-participants.dto';
 import { CreateMeetingDto } from './dto/create-meeting.dto';
 import { MeetingService } from './meeting.service';
 
@@ -36,5 +45,23 @@ export class MeetingController {
   @Post(':id/decline')
   decline(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.meetingService.declineInvitation(id, user.id);
+  }
+
+  @Post(':id/participants')
+  addParticipants(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: AddParticipantsDto,
+  ) {
+    return this.meetingService.addParticipants(id, user.id, dto.participants);
+  }
+
+  @Delete(':id/participants/:userId')
+  removeParticipant(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.meetingService.removeParticipant(id, user.id, userId);
   }
 }
