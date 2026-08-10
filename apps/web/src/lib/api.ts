@@ -66,12 +66,22 @@ export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
   return res.json();
 }
 
+export type ParticipationStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED';
+
+export interface MeetingParticipant {
+  userId: string;
+  email: string;
+  status: ParticipationStatus;
+}
+
 export interface Meeting {
   id: string;
   title: string;
   date: string;
-  participants: string[];
   ownerId: string;
+  role: 'OWNER' | 'PARTICIPANT';
+  myStatus: ParticipationStatus | null;
+  participants: MeetingParticipant[];
   createdAt: string;
   updatedAt: string;
 }
@@ -83,6 +93,32 @@ export async function getMeetings(accessToken: string): Promise<Meeting[]> {
 
   if (!res.ok) {
     throw await buildApiError(res, 'Failed to load meetings.');
+  }
+
+  return res.json();
+}
+
+export interface CreateMeetingPayload {
+  title: string;
+  date: string;
+  participants: string[];
+}
+
+export async function createMeeting(
+  accessToken: string,
+  payload: CreateMeetingPayload,
+): Promise<Meeting> {
+  const res = await fetch(`${API_URL}/meetings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to create meeting.');
   }
 
   return res.json();

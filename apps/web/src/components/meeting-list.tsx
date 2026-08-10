@@ -1,10 +1,43 @@
-import type { Meeting } from '@/lib/api';
+import { Chip } from '@heroui/react';
+import type { Meeting, ParticipationStatus } from '@/lib/api';
 
 function formatMeetingDate(date: string): string {
   return new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(date));
+}
+
+const STATUS_LABEL: Record<ParticipationStatus, string> = {
+  PENDING: 'Pending',
+  ACCEPTED: 'Accepted',
+  DECLINED: 'Declined',
+};
+
+const STATUS_COLOR: Record<
+  ParticipationStatus,
+  'warning' | 'success' | 'danger'
+> = {
+  PENDING: 'warning',
+  ACCEPTED: 'success',
+  DECLINED: 'danger',
+};
+
+function MeetingBadge({ meeting }: { meeting: Meeting }) {
+  if (meeting.role === 'OWNER') {
+    return (
+      <Chip color="default" size="sm">
+        Owner
+      </Chip>
+    );
+  }
+
+  const status = meeting.myStatus ?? 'PENDING';
+  return (
+    <Chip color={STATUS_COLOR[status]} size="sm">
+      {STATUS_LABEL[status]}
+    </Chip>
+  );
 }
 
 interface MeetingListProps {
@@ -26,11 +59,17 @@ export function MeetingList({ meetings, emptyMessage }: MeetingListProps) {
           key={meeting.id}
           className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
         >
-          <span className="text-foreground text-sm font-medium">
+          <span
+            className="text-foreground min-w-0 truncate text-sm font-medium"
+            title={meeting.title}
+          >
             {meeting.title}
           </span>
-          <span className="text-muted text-sm">
-            {formatMeetingDate(meeting.date)}
+          <span className="flex shrink-0 items-center gap-3">
+            <span className="text-muted text-sm">
+              {formatMeetingDate(meeting.date)}
+            </span>
+            <MeetingBadge meeting={meeting} />
           </span>
         </li>
       ))}

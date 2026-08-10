@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Alert, Card, Spinner } from '@heroui/react';
+import { Alert, Button, Card, Spinner } from '@heroui/react';
 import { MeetingList } from '@/components/meeting-list';
 import { ApiError, getMeetings, type Meeting } from '@/lib/api';
 import { clearAccessToken, getAccessToken } from '@/lib/auth';
@@ -72,7 +72,12 @@ export default function MeetingsPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
-      <h1 className="text-foreground text-lg font-semibold">All meetings</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-foreground text-lg font-semibold">All meetings</h1>
+        <Button size="sm" onPress={() => router.push('/meetings/new')}>
+          New meeting
+        </Button>
+      </div>
 
       {isLoading ? (
         <div className="flex justify-center py-8">

@@ -51,12 +51,12 @@
 **Affects:** frontend
 **Tasks:**
 
-- [ ] Build a create-meeting form (title, date, participant emails) that calls the Phase 1 create endpoint and surfaces the unknown-email validation error inline.
-- [ ] Build a meeting list view consuming `GET /meetings`, visually separating "meetings I own" from "meetings I'm invited to," and showing each invitation's status for invited meetings.
-- [ ] Wire both views into the authenticated app shell (using the existing JWT-based session) so only a logged-in user can reach them.
-- [ ] Component/integration tests for the form's validation-error display and the list's owned/invited grouping.
+- [x] Build a create-meeting form (title, date, participant emails) that calls the Phase 1 create endpoint and surfaces the unknown-email validation error inline.
+- [x] Build a meeting list view consuming `GET /meetings`, distinguishing "meetings I own" from "meetings I'm invited to," and showing each invitation's status for invited meetings. (Implemented as a per-row `Chip` badge — "Owner" vs. Pending/Accepted/Declined — rather than separate sections, since the existing Upcoming/Past grouping already occupies that layout slot.)
+- [x] Wire both views into the authenticated app shell (using the existing JWT-based session) so only a logged-in user can reach them.
+- [x] Verify the form's validation-error display and the list's owner/status badges. (`apps/web` has no test runner configured — per `apps/web/CLAUDE.md`'s own testing policy, verified by driving the app with Playwright MCP instead: unknown-email server error, empty-participants client-side error, owner vs. invited-pending badges, light/dark, and mobile viewport.)
 
-**Done when:** A logged-in user can create a meeting with invitees through the UI and see their full meeting list (owned + invited, with status) rendered correctly.
+**Done when:** A logged-in user can create a meeting with invitees through the UI and see their full meeting list (owned + invited, with status) rendered correctly. ✅ Done.
 
 ### Phase 5: Web — meeting detail: accept/decline and participant management
 

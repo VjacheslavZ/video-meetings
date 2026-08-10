@@ -19,14 +19,20 @@ There is no test runner configured for this app yet.
 
 ## Architecture
 
-Next.js App Router project (`create-next-app` scaffold, Next 16, React 19).
+Next.js App Router project (`create-next-app` scaffold, Next 16, React 19), using HeroUI v3 (`@heroui/react`) + Tailwind v4 for UI.
 
-- `src/app/layout.tsx` — root layout.
-- `src/app/page.tsx` — home page (`/`).
-- `src/app/globals.css` / `page.module.css` — global and page-scoped styles (CSS Modules).
+- `src/app/layout.tsx` — root layout; `src/app/globals.css` — global styles, including light/dark theme tokens (HeroUI's dark theme is opt-in via a `.dark` class/`data-theme` attribute, not `prefers-color-scheme`).
+- `src/app/login/page.tsx`, `src/app/register/page.tsx` — unauthenticated auth pages; on success they store the JWT via `setAccessToken` (`lib/auth.ts`) and redirect to `/`.
+- `src/app/(app)/layout.tsx` — layout for authenticated routes: redirects to `/login` if no valid access token is found client-side, renders the header (logo, signed-in email, log out) otherwise.
+- `src/app/(app)/page.tsx` — home page (`/`), shows the 3 most recently created meetings.
+- `src/app/(app)/meetings/page.tsx` — full meeting list, split into Upcoming/Past sections.
+- `src/app/(app)/meetings/new/page.tsx` — create-meeting form (title, date & time, comma-separated participant emails); participant emails must belong to registered users, and the API's validation error (e.g. an unknown email) is surfaced inline.
+- `src/components/meeting-list.tsx` — shared list renderer used by both meeting pages; shows an "Owner" chip for meetings the current user owns, or a status chip (Pending/Accepted/Declined) for meetings they're invited to.
+- `src/lib/api.ts` — `fetch`-based client for `apps/api` (register/login/get meetings/create meeting), throwing `ApiError` (with `status`) on non-2xx responses.
+- `src/lib/auth.ts` — access-token storage (`localStorage`) and a non-verifying JWT payload decode used only for display (e.g. showing the signed-in email).
 - `public/` — static assets served from `/`.
 
-No routing beyond the root page exists yet; new routes follow the App Router convention of `src/app/<segment>/page.tsx`.
+New routes follow the App Router convention of `src/app/<segment>/page.tsx`; authenticated routes go under `src/app/(app)/`.
 
 **Read `@AGENTS.md` above before writing any code** — this Next.js version has breaking changes vs. training data; consult `node_modules/next/dist/docs/` for current API/conventions rather than relying on prior knowledge.
 

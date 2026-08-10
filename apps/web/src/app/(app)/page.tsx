@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Alert, Card, Link, Spinner } from '@heroui/react';
+import { Alert, Button, Card, Link, Spinner } from '@heroui/react';
 import { MeetingList } from '@/components/meeting-list';
 import { ApiError, getMeetings, type Meeting } from '@/lib/api';
 import { clearAccessToken, getAccessToken } from '@/lib/auth';
@@ -62,9 +62,14 @@ export default function HomePage() {
         <h1 className="text-foreground text-lg font-semibold">
           Recent meetings
         </h1>
-        <Link href="/meetings" className="text-sm">
-          View all
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/meetings" className="text-sm">
+            View all
+          </Link>
+          <Button size="sm" onPress={() => router.push('/meetings/new')}>
+            New meeting
+          </Button>
+        </div>
       </div>
 
       <Card className="p-6">

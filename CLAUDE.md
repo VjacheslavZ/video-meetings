@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a pnpm/Turborepo monorepo with two apps:
 
 - `apps/api` — NestJS backend (see `apps/api/CLAUDE.md`). Has a Postgres-backed `AuthModule` (JWT issuance/verification via better-auth, plus the `JwtAuthGuard` that verifies issued JWTs) and `UsersModule` (user creation/credential lookup via better-auth), which interact through `@nestjs/cqrs` commands/queries rather than direct service injection, plus a `MeetingModule` (CRUD-lite for meetings, scoped to the authenticated user); see that file for details.
-- `apps/web` — Next.js frontend (see `apps/web/CLAUDE.md`), still a fresh scaffold with no custom code.
+- `apps/web` — Next.js frontend (see `apps/web/CLAUDE.md`): auth pages (login/register), an authenticated `(app)` route group with a home/meetings dashboard, and a meeting-creation form, all calling `apps/api` via a small `fetch`-based client.
 
 `docker-compose.yml` at the repo root runs Postgres for local development (`docker compose up -d postgres`), used by `apps/api`'s Prisma setup.
 
