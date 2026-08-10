@@ -1,4 +1,4 @@
-import { Chip } from '@heroui/react';
+import { Chip, Link } from '@heroui/react';
 import type { Meeting, ParticipationStatus } from '@/lib/api';
 
 function formatMeetingDate(date: string): string {
@@ -53,24 +53,26 @@ export function MeetingList({ meetings, emptyMessage }: MeetingListProps) {
   }
 
   return (
-    <ul className="divide-border flex flex-col divide-y">
+    <ul className="divide-border -mx-3 flex flex-col divide-y">
       {meetings.map((meeting) => (
-        <li
-          key={meeting.id}
-          className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
-        >
-          <span
-            className="text-foreground min-w-0 truncate text-sm font-medium"
-            title={meeting.title}
+        <li key={meeting.id}>
+          <Link
+            href={`/meetings/${meeting.id}`}
+            className="hover:bg-background-secondary flex items-center justify-between gap-4 rounded-lg px-3 py-3 no-underline"
           >
-            {meeting.title}
-          </span>
-          <span className="flex shrink-0 items-center gap-3">
-            <span className="text-muted text-sm">
-              {formatMeetingDate(meeting.date)}
+            <span
+              className="text-foreground min-w-0 truncate text-sm font-medium"
+              title={meeting.title}
+            >
+              {meeting.title}
             </span>
-            <MeetingBadge meeting={meeting} />
-          </span>
+            <span className="flex shrink-0 items-center gap-3">
+              <span className="text-muted text-sm">
+                {formatMeetingDate(meeting.date)}
+              </span>
+              <MeetingBadge meeting={meeting} />
+            </span>
+          </Link>
         </li>
       ))}
     </ul>

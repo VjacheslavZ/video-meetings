@@ -27,8 +27,9 @@ Next.js App Router project (`create-next-app` scaffold, Next 16, React 19), usin
 - `src/app/(app)/page.tsx` — home page (`/`), shows the 3 most recently created meetings.
 - `src/app/(app)/meetings/page.tsx` — full meeting list, split into Upcoming/Past sections.
 - `src/app/(app)/meetings/new/page.tsx` — create-meeting form (title, date & time, comma-separated participant emails); participant emails must belong to registered users, and the API's validation error (e.g. an unknown email) is surfaced inline.
-- `src/components/meeting-list.tsx` — shared list renderer used by both meeting pages; shows an "Owner" chip for meetings the current user owns, or a status chip (Pending/Accepted/Declined) for meetings they're invited to.
-- `src/lib/api.ts` — `fetch`-based client for `apps/api` (register/login/get meetings/create meeting), throwing `ApiError` (with `status`) on non-2xx responses.
+- `src/app/(app)/meetings/[id]/page.tsx` — meeting detail page: date, role/status badge; Accept/Decline buttons for a pending invitee; a participant list with per-row status; owner-only controls to invite more participants (inline form) and remove one (icon button behind a HeroUI `AlertDialog` confirmation, since removal is immediate and access-affecting). A user with no access gets a 404-style message rather than raw API errors.
+- `src/components/meeting-list.tsx` — shared list renderer used by both meeting pages; each row links to `/meetings/[id]` and shows an "Owner" chip for meetings the current user owns, or a status chip (Pending/Accepted/Declined) for meetings they're invited to.
+- `src/lib/api.ts` — `fetch`-based client for `apps/api` (register/login/get meetings/create meeting/get meeting by id/accept/decline/add participants/remove participant), throwing `ApiError` (with `status`) on non-2xx responses.
 - `src/lib/auth.ts` — access-token storage (`localStorage`) and a non-verifying JWT payload decode used only for display (e.g. showing the signed-in email).
 - `public/` — static assets served from `/`.
 

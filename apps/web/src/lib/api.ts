@@ -123,3 +123,88 @@ export async function createMeeting(
 
   return res.json();
 }
+
+export async function getMeeting(
+  accessToken: string,
+  id: string,
+): Promise<Meeting> {
+  const res = await fetch(`${API_URL}/meetings/${id}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to load meeting.');
+  }
+
+  return res.json();
+}
+
+export async function acceptMeetingInvitation(
+  accessToken: string,
+  id: string,
+): Promise<Meeting> {
+  const res = await fetch(`${API_URL}/meetings/${id}/accept`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to accept invitation.');
+  }
+
+  return res.json();
+}
+
+export async function declineMeetingInvitation(
+  accessToken: string,
+  id: string,
+): Promise<Meeting> {
+  const res = await fetch(`${API_URL}/meetings/${id}/decline`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to decline invitation.');
+  }
+
+  return res.json();
+}
+
+export async function addMeetingParticipants(
+  accessToken: string,
+  id: string,
+  participants: string[],
+): Promise<Meeting> {
+  const res = await fetch(`${API_URL}/meetings/${id}/participants`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ participants }),
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to add participant.');
+  }
+
+  return res.json();
+}
+
+export async function removeMeetingParticipant(
+  accessToken: string,
+  id: string,
+  userId: string,
+): Promise<Meeting> {
+  const res = await fetch(`${API_URL}/meetings/${id}/participants/${userId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to remove participant.');
+  }
+
+  return res.json();
+}
