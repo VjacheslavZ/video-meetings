@@ -11,11 +11,25 @@ interface AccessTokenResponse {
   accessToken: string;
 }
 
+interface RegisteredUser {
+  accessToken: string;
+  email: string;
+}
+
+interface MeetingParticipantResponse {
+  userId: string;
+  email: string;
+  status: 'PENDING' | 'ACCEPTED' | 'DECLINED';
+}
+
 interface MeetingResponse {
   id: string;
   title: string;
   date: string;
-  participants: string[];
+  ownerId: string;
+  role: 'OWNER' | 'PARTICIPANT';
+  myStatus: 'PENDING' | 'ACCEPTED' | 'DECLINED' | null;
+  participants: MeetingParticipantResponse[];
 }
 
 function uniqueEmail(): string {
@@ -38,92 +52,141 @@ describe('Meetings (e2e)', () => {
     await app.close();
   });
 
-  async function registerUser(): Promise<string> {
+  async function registerUser(): Promise<RegisteredUser> {
+    const email = uniqueEmail();
     const response = await request(app.getHttpServer())
       .post('/auth/register')
       .send({
         name: 'Test User',
-        email: uniqueEmail(),
+        email,
         password: VALID_PASSWORD,
       })
       .expect(201);
-    return (response.body as AccessTokenResponse).accessToken;
+    return {
+      accessToken: (response.body as AccessTokenResponse).accessToken,
+      email,
+    };
   }
 
-  function validMeetingBody() {
+  function meetingBody(participants: string[] = ['placeholder@example.com']) {
     return {
       title: 'Sprint planning',
       date: '2026-08-10T10:00:00.000Z',
-      participants: ['a@example.com', 'b@example.com'],
+      participants,
     };
   }
 
   describe('POST /meetings', () => {
-    it('creates a meeting for the authenticated user', async () => {
-      const accessToken = await registerUser();
-      const body = validMeetingBody();
+    it('creates a meeting for the authenticated user, inviting a registered participant as pending', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
 
       const response = await request(app.getHttpServer())
         .post('/meetings')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send(body)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
         .expect(201);
 
       const meeting = response.body as MeetingResponse;
-      expect(meeting).toMatchObject(body);
+      expect(meeting).toMatchObject({
+        title: 'Sprint planning',
+        role: 'OWNER',
+        myStatus: null,
+      });
+      expect(meeting.participants).toEqual([
+        expect.objectContaining({ email: invitee.email, status: 'PENDING' }),
+      ]);
       expect(typeof meeting.id).toBe('string');
+    });
+
+    it('rejects an invite to an email with no registered user', async () => {
+      const owner = await registerUser();
+
+      await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody(['unknown@example.com']))
+        .expect(400);
+    });
+
+    it('does not create duplicate participant rows for a repeated email', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+
+      const response = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email, invitee.email]))
+        .expect(201);
+
+      const meeting = response.body as MeetingResponse;
+      expect(meeting.participants).toHaveLength(1);
     });
 
     it('rejects requests without an access token', async () => {
       await request(app.getHttpServer())
         .post('/meetings')
-        .send(validMeetingBody())
+        .send(meetingBody())
         .expect(401);
     });
 
     it.each([
-      ['missing title', { ...validMeetingBody(), title: undefined }],
-      ['missing date', { ...validMeetingBody(), date: undefined }],
-      ['invalid date', { ...validMeetingBody(), date: 'not-a-date' }],
+      ['missing title', { ...meetingBody(), title: undefined }],
+      ['missing date', { ...meetingBody(), date: undefined }],
+      ['invalid date', { ...meetingBody(), date: 'not-a-date' }],
       [
         'participants with an invalid email',
-        { ...validMeetingBody(), participants: ['not-an-email'] },
+        { ...meetingBody(), participants: ['not-an-email'] },
       ],
     ])('rejects a request with %s', async (_description, body) => {
-      const accessToken = await registerUser();
+      const owner = await registerUser();
 
       await request(app.getHttpServer())
         .post('/meetings')
-        .set('Authorization', `Bearer ${accessToken}`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
         .send(body)
         .expect(400);
     });
   });
 
   describe('GET /meetings', () => {
-    it("returns only the current user's meetings", async () => {
-      const ownerToken = await registerUser();
-      const otherToken = await registerUser();
+    it("returns meetings the user owns and meetings they're invited to, with status", async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const unrelated = await registerUser();
       await request(app.getHttpServer())
         .post('/meetings')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send(validMeetingBody())
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
         .expect(201);
 
       const ownerResponse = await request(app.getHttpServer())
         .get('/meetings')
-        .set('Authorization', `Bearer ${ownerToken}`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
         .expect(200);
-      const otherResponse = await request(app.getHttpServer())
+      const inviteeResponse = await request(app.getHttpServer())
         .get('/meetings')
-        .set('Authorization', `Bearer ${otherToken}`)
+        .set('Authorization', `Bearer ${invitee.accessToken}`)
+        .expect(200);
+      const unrelatedResponse = await request(app.getHttpServer())
+        .get('/meetings')
+        .set('Authorization', `Bearer ${unrelated.accessToken}`)
         .expect(200);
 
       const ownerMeetings = ownerResponse.body as MeetingResponse[];
-      const otherMeetings = otherResponse.body as MeetingResponse[];
+      const inviteeMeetings = inviteeResponse.body as MeetingResponse[];
+      const unrelatedMeetings = unrelatedResponse.body as MeetingResponse[];
+
       expect(ownerMeetings).toHaveLength(1);
-      expect(ownerMeetings[0]).toMatchObject(validMeetingBody());
-      expect(otherMeetings).toHaveLength(0);
+      expect(ownerMeetings[0]).toMatchObject({ role: 'OWNER', myStatus: null });
+
+      expect(inviteeMeetings).toHaveLength(1);
+      expect(inviteeMeetings[0]).toMatchObject({
+        role: 'PARTICIPANT',
+        myStatus: 'PENDING',
+      });
+
+      expect(unrelatedMeetings).toHaveLength(0);
     });
 
     it('rejects requests without an access token', async () => {
@@ -133,44 +196,68 @@ describe('Meetings (e2e)', () => {
 
   describe('GET /meetings/:id', () => {
     it('returns the meeting by id for its owner', async () => {
-      const accessToken = await registerUser();
+      const owner = await registerUser();
+      const invitee = await registerUser();
       const createResponse = await request(app.getHttpServer())
         .post('/meetings')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .send(validMeetingBody())
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
         .expect(201);
       const { id } = createResponse.body as MeetingResponse;
 
       const response = await request(app.getHttpServer())
         .get(`/meetings/${id}`)
-        .set('Authorization', `Bearer ${accessToken}`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
         .expect(200);
 
-      expect(response.body).toMatchObject({ id, ...validMeetingBody() });
+      expect(response.body).toMatchObject({ id, role: 'OWNER' });
+    });
+
+    it('returns the meeting by id for an invited participant', async () => {
+      const owner = await registerUser();
+      const invitee = await registerUser();
+      const createResponse = await request(app.getHttpServer())
+        .post('/meetings')
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
+        .expect(201);
+      const { id } = createResponse.body as MeetingResponse;
+
+      const response = await request(app.getHttpServer())
+        .get(`/meetings/${id}`)
+        .set('Authorization', `Bearer ${invitee.accessToken}`)
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        id,
+        role: 'PARTICIPANT',
+        myStatus: 'PENDING',
+      });
     });
 
     it('returns 404 when the meeting does not exist', async () => {
-      const accessToken = await registerUser();
+      const owner = await registerUser();
 
       await request(app.getHttpServer())
         .get(`/meetings/${randomUUID()}`)
-        .set('Authorization', `Bearer ${accessToken}`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
         .expect(404);
     });
 
-    it('returns 404 when the meeting belongs to another user', async () => {
-      const ownerToken = await registerUser();
-      const otherToken = await registerUser();
+    it('returns 404 when the meeting belongs to another user and they are not invited', async () => {
+      const owner = await registerUser();
+      const unrelated = await registerUser();
+      const invitee = await registerUser();
       const createResponse = await request(app.getHttpServer())
         .post('/meetings')
-        .set('Authorization', `Bearer ${ownerToken}`)
-        .send(validMeetingBody())
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .send(meetingBody([invitee.email]))
         .expect(201);
       const { id } = createResponse.body as MeetingResponse;
 
       await request(app.getHttpServer())
         .get(`/meetings/${id}`)
-        .set('Authorization', `Bearer ${otherToken}`)
+        .set('Authorization', `Bearer ${unrelated.accessToken}`)
         .expect(404);
     });
 

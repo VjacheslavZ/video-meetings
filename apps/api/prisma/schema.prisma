@@ -9,16 +9,17 @@ datasource db {
 }
 
 model User {
-  id            String    @id
+  id            String               @id
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  emailVerified Boolean              @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
   sessions      Session[]
   accounts      Account[]
   meetings      Meeting[]
+  participation MeetingParticipant[]
 
   @@unique([email])
   @@map("user")
@@ -83,15 +84,36 @@ model Jwks {
 }
 
 model Meeting {
-  id           String   @id @default(uuid())
+  id           String               @id @default(uuid())
   title        String
   date         DateTime
-  participants String[]
   ownerId      String
-  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  owner        User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  participants MeetingParticipant[]
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
   @@index([ownerId])
   @@map("meeting")
+}
+
+enum ParticipationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model MeetingParticipant {
+  id        String              @id @default(uuid())
+  meetingId String
+  meeting   Meeting             @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status    ParticipationStatus @default(PENDING)
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@unique([meetingId, userId])
+  @@index([userId])
+  @@map("meeting_participant")
 }
