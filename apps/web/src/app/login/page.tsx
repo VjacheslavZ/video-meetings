@@ -15,10 +15,10 @@ import {
   TextField,
 } from '@heroui/react';
 import { EyeIcon, EyeOffIcon } from '@/components/icons';
-import { ApiError, registerUser } from '@/lib/api';
+import { ApiError, loginUser } from '@/lib/api';
 import { setAccessToken } from '@/lib/auth';
 
-export default function RegisterPage() {
+export default function LoginPage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,20 +29,19 @@ export default function RegisterPage() {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const name = String(formData.get('name') ?? '');
     const email = String(formData.get('email') ?? '');
     const password = String(formData.get('password') ?? '');
 
     setIsSubmitting(true);
     try {
-      const { accessToken } = await registerUser({ name, email, password });
+      const { accessToken } = await loginUser({ email, password });
       setAccessToken(accessToken);
       router.push('/');
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : 'Registration failed. Please try again.',
+          : 'Sign in failed. Please try again.',
       );
     } finally {
       setIsSubmitting(false);
@@ -58,10 +57,10 @@ export default function RegisterPage() {
           </div>
           <div className="flex flex-col items-center gap-1 text-center">
             <h1 className="text-foreground text-xl font-semibold">
-              Create an account
+              Welcome back
             </h1>
             <p className="text-muted text-sm">
-              Sign up to start scheduling meetings
+              Sign in to manage your meetings
             </p>
           </div>
         </div>
@@ -82,18 +81,6 @@ export default function RegisterPage() {
                 <TextField
                   isRequired
                   fullWidth
-                  name="name"
-                  type="text"
-                  autoComplete="name"
-                >
-                  <Label>Name</Label>
-                  <Input placeholder="Jane Doe" variant="secondary" />
-                  <FieldError />
-                </TextField>
-
-                <TextField
-                  isRequired
-                  fullWidth
                   name="email"
                   type="email"
                   autoComplete="email"
@@ -107,13 +94,7 @@ export default function RegisterPage() {
                   isRequired
                   fullWidth
                   name="password"
-                  autoComplete="new-password"
-                  validate={(value) => {
-                    if (value.length > 0 && value.length < 8) {
-                      return 'Password must be at least 8 characters';
-                    }
-                    return null;
-                  }}
+                  autoComplete="current-password"
                 >
                   <Label>Password</Label>
                   <InputGroup fullWidth variant="secondary">
@@ -149,10 +130,11 @@ export default function RegisterPage() {
                 isDisabled={isSubmitting}
                 type="submit"
               >
-                {isSubmitting ? 'Creating account…' : 'Create account'}
+                {isSubmitting ? 'Signing in…' : 'Sign in'}
               </Button>
               <p className="text-muted text-center text-sm">
-                Already have an account? <Link href="/login">Sign in</Link>
+                Don&apos;t have an account?{' '}
+                <Link href="/register">Sign up</Link>
               </p>
             </Card.Footer>
           </Form>
