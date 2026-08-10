@@ -31,7 +31,7 @@ Postgres runs via the repo-root `docker-compose.yml` (`docker compose up -d post
 - `prisma/schema.prisma` — datasource/generator + the `User`, `Session`, `Account`, `Verification`, `Jwks` models required by better-auth (generated with `npx @better-auth/cli generate`, then hand-maintained), plus an app-owned `Meeting` model (`title`, `date`, `participants: String[]`, `ownerId` → `User`).
 - `prisma/migrations/` — applied with `npx prisma migrate dev`.
 - `.env` (gitignored, see `.env.example`) — `DATABASE_URL`, `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`.
-- `src/prisma/prisma.service.ts` — injectable `PrismaService` (extends `PrismaClient`, connects/disconnects with the Nest module lifecycle), provided app-wide by the `@Global()` `PrismaModule`. This is separate from the raw `PrismaClient` instantiated in `auth/auth.instance.ts` for better-auth's own adapter.
+- `src/prisma/prisma.service.ts` — injectable `PrismaService` (extends `PrismaClient`, connects/disconnects with the Nest module lifecycle), provided app-wide by the `@Global()` `PrismaModule`. This is separate from the raw `PrismaClient` instantiated in `better-auth/better-auth.instance.ts` for better-auth's own adapter.
 
 After changing `schema.prisma`, run `npx prisma migrate dev --name <change>` from `apps/api/`.
 
@@ -42,13 +42,18 @@ Standard NestJS application (`@nestjs/cli` scaffold, `nest-cli.json` sets `sourc
 - `src/main.ts` — bootstraps the Nest app (`NestFactory.create(AppModule)`).
 - `src/app.module.ts` — root module; registers `AuthModule` and a global `ValidationPipe` (via `APP_PIPE`, so it also applies inside e2e `TestingModule` contexts that don't go through `main.ts`).
 - `src/app.controller.ts` / `src/app.service.ts` — the default scaffold controller/service pair.
-- `src/auth/` — email/password authentication, backed by [better-auth](https://www.better-auth.com):
-  - `auth.instance.ts` — lazily constructs the `betterAuth()` singleton (Prisma adapter + `jwt()` plugin) behind a dynamic `import()`, since better-auth is ESM-only and this project's Jest/ts-jest setup runs as CommonJS. Exposes a small hand-declared `Auth` interface instead of the library's inferred return type, because that inferred type can't be named in emitted `.d.ts` files (`declaration: true` in `tsconfig.json`).
-  - `auth.service.ts` — calls `auth.api.signUpEmail` / `signInEmail`, then mints an access token via the server-only `auth.api.signJWT`. Maps better-auth's `APIError` statuses to `ConflictException` (duplicate email) / `UnauthorizedException` (bad credentials).
+- `src/better-auth/` — the shared [better-auth](https://www.better-auth.com) integration, used by both `auth/` and `users/` below:
+  - `better-auth.instance.ts` — lazily constructs the `betterAuth()` singleton (Prisma adapter + `jwt()` plugin) behind a dynamic `import()`, since better-auth is ESM-only and this project's Jest/ts-jest setup runs as CommonJS. Exposes a small hand-declared `Auth` interface instead of the library's inferred return type, because that inferred type can't be named in emitted `.d.ts` files (`declaration: true` in `tsconfig.json`). Also exports `isBetterAuthApiError`, a type guard for better-auth's `APIError` shape.
+- `src/users/` — `UsersModule`: owns user creation and credential lookup, backed by better-auth's `signUpEmail`/`signInEmail`. Exposes its behavior only as `@nestjs/cqrs` commands/queries (registered in `UsersModule`'s providers), not as an injectable service — callers go through `CommandBus`/`QueryBus`, not a direct import of `UsersModule`.
+  - `commands/create-user.command.ts` + `create-user.handler.ts` — `CreateUserCommand` (`name`, `email`, `password`) → `CreateUserHandler` calls `signUpEmail`, maps the duplicate-email `APIError` to `ConflictException`, returns the created `AuthUser`.
+  - `queries/verify-user-credentials.query.ts` + `verify-user-credentials.handler.ts` — `VerifyUserCredentialsQuery` (`email`, `password`) → `VerifyUserCredentialsHandler` calls `signInEmail`, maps any `APIError` to `UnauthorizedException`, returns the matched `AuthUser`.
+- `src/auth/` — JWT issuance and verification:
+  - `auth.service.ts` — dispatches `CreateUserCommand`/`VerifyUserCredentialsQuery` (via injected `CommandBus`/`QueryBus`) to `UsersModule`'s handlers, then mints an access token itself via the server-only `auth.api.signJWT` from the shared better-auth instance. This command/query dispatch is the only interaction between `AuthModule` and `UsersModule` — neither module imports the other's providers directly.
   - `auth.controller.ts` — `POST /auth/register` and `POST /auth/login`, both returning `{ accessToken }`.
   - `dto/` — `class-validator` DTOs (`RegisterDto`, `LoginDto`).
   - `jwt-auth.guard.ts` — `JwtAuthGuard`, used via `@UseGuards(JwtAuthGuard)` to protect routes. Verifies the bearer token with `jose` against the public keys in the `Jwks` table (fetched via `PrismaService`, matched by `kid`) and checks `issuer`/`audience` against `BETTER_AUTH_URL`; on success it attaches `{ id, email }` to `request.user`. Exported from `AuthModule` so other modules can import `AuthModule` to use the guard.
   - `current-user.decorator.ts` — `@CurrentUser()` param decorator that reads `request.user` (populated by `JwtAuthGuard`); exports the `AuthenticatedUser` type.
+  - Both `AuthModule` and `UsersModule` import `CqrsModule` (from `@nestjs/cqrs`) so their `CommandBus`/`QueryBus` share the same singleton instances; both must be registered in `AppModule` for `UsersModule`'s handlers to be picked up, since `AuthModule` no longer imports `UsersModule` directly.
 - `src/prisma/` — `PrismaService` + the `@Global()` `PrismaModule` that provides it app-wide (see Database section above).
 - `src/meeting/` — `MeetingModule`: meetings scoped to the authenticated user, imports `AuthModule` to apply `JwtAuthGuard`.
   - `meeting.controller.ts` — `POST /meetings`, `GET /meetings` (current user's meetings), `GET /meetings/:id` (404 if not found or not owned by the current user).

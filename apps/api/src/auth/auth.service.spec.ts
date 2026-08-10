@@ -1,10 +1,12 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { AuthService } from './auth.service';
-import { getAuth } from './auth.instance';
+import { getAuth } from '../better-auth/better-auth.instance';
+import { CreateUserCommand } from '../users/commands/create-user.command';
+import { VerifyUserCredentialsQuery } from '../users/queries/verify-user-credentials.query';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 
-jest.mock('./auth.instance', () => ({
+jest.mock('../better-auth/better-auth.instance', () => ({
   getAuth: jest.fn(),
 }));
 
@@ -12,18 +14,25 @@ const mockedGetAuth = getAuth as jest.MockedFunction<typeof getAuth>;
 
 describe('AuthService', () => {
   let service: AuthService;
-  let signUpEmail: jest.Mock;
-  let signInEmail: jest.Mock;
+  let commandBus: { execute: jest.Mock };
+  let queryBus: { execute: jest.Mock };
   let signJWT: jest.Mock;
 
   beforeEach(() => {
-    service = new AuthService();
-    signUpEmail = jest.fn();
-    signInEmail = jest.fn();
+    commandBus = { execute: jest.fn() };
+    queryBus = { execute: jest.fn() };
+    service = new AuthService(
+      commandBus as unknown as CommandBus,
+      queryBus as unknown as QueryBus,
+    );
     signJWT = jest.fn();
 
     mockedGetAuth.mockResolvedValue({
-      api: { signUpEmail, signInEmail, signJWT },
+      api: {
+        signUpEmail: jest.fn(),
+        signInEmail: jest.fn(),
+        signJWT,
+      },
     });
   });
 
@@ -39,15 +48,15 @@ describe('AuthService', () => {
     };
     const user = { id: 'user-1', email: dto.email, name: dto.name };
 
-    it('signs up the user and returns a minted access token', async () => {
-      signUpEmail.mockResolvedValue({ user });
+    it('dispatches CreateUserCommand and returns a minted access token', async () => {
+      commandBus.execute.mockResolvedValue(user);
       signJWT.mockResolvedValue({ token: 'signed.jwt.token' });
 
       const result = await service.register(dto);
 
-      expect(signUpEmail).toHaveBeenCalledWith({
-        body: { name: dto.name, email: dto.email, password: dto.password },
-      });
+      expect(commandBus.execute).toHaveBeenCalledWith(
+        new CreateUserCommand(dto.name, dto.email, dto.password),
+      );
       expect(signJWT).toHaveBeenCalledTimes(1);
       const [{ body }] = signJWT.mock.calls[0] as [
         { body: { payload: Record<string, unknown> } },
@@ -62,32 +71,16 @@ describe('AuthService', () => {
       expect(result).toEqual({ accessToken: 'signed.jwt.token' });
     });
 
-    it('throws ConflictException when the email is already taken', async () => {
-      signUpEmail.mockRejectedValue({ status: 'UNPROCESSABLE_ENTITY' });
+    it('propagates errors from CreateUserCommand', async () => {
+      const error = new Error('boom');
+      commandBus.execute.mockRejectedValue(error);
 
-      await expect(service.register(dto)).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(service.register(dto)).rejects.toBe(error);
       expect(signJWT).not.toHaveBeenCalled();
     });
 
-    it('rethrows better-auth errors that are not the duplicate-email case', async () => {
-      signUpEmail.mockRejectedValue({ status: 'BAD_REQUEST' });
-
-      await expect(service.register(dto)).rejects.toMatchObject({
-        status: 'BAD_REQUEST',
-      });
-    });
-
-    it('rethrows errors that are not shaped like a better-auth API error', async () => {
-      const unexpected = new Error('boom');
-      signUpEmail.mockRejectedValue(unexpected);
-
-      await expect(service.register(dto)).rejects.toBe(unexpected);
-    });
-
     it('throws when better-auth returns no JWT', async () => {
-      signUpEmail.mockResolvedValue({ user });
+      commandBus.execute.mockResolvedValue(user);
       signJWT.mockResolvedValue({ token: null });
 
       await expect(service.register(dto)).rejects.toThrow(
@@ -103,32 +96,24 @@ describe('AuthService', () => {
     };
     const user = { id: 'user-1', email: dto.email, name: 'Test User' };
 
-    it('signs in the user and returns a minted access token', async () => {
-      signInEmail.mockResolvedValue({ user });
+    it('dispatches VerifyUserCredentialsQuery and returns a minted access token', async () => {
+      queryBus.execute.mockResolvedValue(user);
       signJWT.mockResolvedValue({ token: 'signed.jwt.token' });
 
       const result = await service.login(dto);
 
-      expect(signInEmail).toHaveBeenCalledWith({
-        body: { email: dto.email, password: dto.password },
-      });
+      expect(queryBus.execute).toHaveBeenCalledWith(
+        new VerifyUserCredentialsQuery(dto.email, dto.password),
+      );
       expect(result).toEqual({ accessToken: 'signed.jwt.token' });
     });
 
-    it('throws UnauthorizedException on any better-auth API error', async () => {
-      signInEmail.mockRejectedValue({ status: 'UNAUTHORIZED' });
+    it('propagates errors from VerifyUserCredentialsQuery', async () => {
+      const error = new Error('boom');
+      queryBus.execute.mockRejectedValue(error);
 
-      await expect(service.login(dto)).rejects.toBeInstanceOf(
-        UnauthorizedException,
-      );
+      await expect(service.login(dto)).rejects.toBe(error);
       expect(signJWT).not.toHaveBeenCalled();
-    });
-
-    it('rethrows errors that are not shaped like a better-auth API error', async () => {
-      const unexpected = new Error('boom');
-      signInEmail.mockRejectedValue(unexpected);
-
-      await expect(service.login(dto)).rejects.toBe(unexpected);
     });
   });
 });

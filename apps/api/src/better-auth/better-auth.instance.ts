@@ -49,7 +49,7 @@ async function createAuth(): Promise<Auth> {
 
   // better-auth's builder-inferred type can't be named in emitted .d.ts
   // files (it references a deeply nested zod subpath); Auth above is a
-  // hand-declared subset covering only what AuthService actually calls.
+  // hand-declared subset covering only what callers actually invoke.
   return auth;
 }
 
@@ -60,4 +60,19 @@ let authPromise: Promise<Auth> | undefined;
 export function getAuth(): Promise<Auth> {
   authPromise ??= createAuth();
   return authPromise;
+}
+
+export interface BetterAuthApiError {
+  status: string;
+}
+
+export function isBetterAuthApiError(
+  error: unknown,
+): error is BetterAuthApiError {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    typeof (error as { status?: unknown }).status === 'string'
+  );
 }
