@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { Button } from '@heroui/react';
 import styles from './page.module.css';
 
 export default function Home() {
@@ -37,6 +38,11 @@ export default function Home() {
             </a>{' '}
             center.
           </p>
+        </div>
+        <div className="flex gap-3">
+          <Button>Primary</Button>
+          <Button variant="secondary">Secondary</Button>
+          <Button variant="outline">Outline</Button>
         </div>
         <div className={styles.ctas}>
           <a
