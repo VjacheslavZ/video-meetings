@@ -2,6 +2,7 @@ import { createReadStream } from 'fs';
 import { join } from 'path';
 import {
   Controller,
+  Delete,
   Get,
   Param,
   Post,
@@ -57,5 +58,14 @@ export class MeetingFileController {
       disposition: buildContentDisposition(file.filename),
       length: file.size,
     });
+  }
+
+  @Delete(':fileId')
+  remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('meetingId') meetingId: string,
+    @Param('fileId') fileId: string,
+  ): Promise<void> {
+    return this.meetingFileService.deleteFile(meetingId, fileId, user.id);
   }
 }

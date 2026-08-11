@@ -1,6 +1,10 @@
 import { Readable } from 'stream';
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException, StreamableFile } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  StreamableFile,
+} from '@nestjs/common';
 import { MeetingFileController } from './meeting-file.controller';
 import { MeetingFileService } from './meeting-file.service';
 import { MeetingFileAccessGuard } from './meeting-file-access.guard';
@@ -21,6 +25,7 @@ describe('MeetingFileController', () => {
     saveUploaded: jest.Mock;
     findAllForMeeting: jest.Mock;
     getOneForMeeting: jest.Mock;
+    deleteFile: jest.Mock;
   };
 
   const currentUser: AuthenticatedUser = {
@@ -34,6 +39,7 @@ describe('MeetingFileController', () => {
       saveUploaded: jest.fn(),
       findAllForMeeting: jest.fn(),
       getOneForMeeting: jest.fn(),
+      deleteFile: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -118,6 +124,43 @@ describe('MeetingFileController', () => {
 
       await expect(
         controller.download(meetingId, 'missing-file'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('remove', () => {
+    it("delegates to the service with the current user's id", async () => {
+      meetingFileService.deleteFile.mockResolvedValue(undefined);
+
+      const result = await controller.remove(currentUser, meetingId, 'file-1');
+
+      expect(meetingFileService.deleteFile).toHaveBeenCalledWith(
+        meetingId,
+        'file-1',
+        currentUser.id,
+      );
+      expect(result).toBeUndefined();
+    });
+
+    it('propagates a ForbiddenException from the service', async () => {
+      meetingFileService.deleteFile.mockRejectedValue(
+        new ForbiddenException(
+          'Only the uploader or meeting owner can delete this file',
+        ),
+      );
+
+      await expect(
+        controller.remove(currentUser, meetingId, 'file-1'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('propagates a NotFoundException from the service', async () => {
+      meetingFileService.deleteFile.mockRejectedValue(
+        new NotFoundException('File not found'),
+      );
+
+      await expect(
+        controller.remove(currentUser, meetingId, 'missing-file'),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
   });

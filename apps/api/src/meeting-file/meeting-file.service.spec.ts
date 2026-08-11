@@ -1,7 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { MeetingFileService } from './meeting-file.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+jest.mock('fs/promises', () => ({ unlink: jest.fn() }));
 
 describe('MeetingFileService', () => {
   let service: MeetingFileService;
@@ -10,11 +16,13 @@ describe('MeetingFileService', () => {
       create: jest.Mock;
       findFirst: jest.Mock;
       findMany: jest.Mock;
+      delete: jest.Mock;
     };
     $transaction: jest.Mock;
   };
 
   const meetingId = 'meeting-1';
+  const ownerId = 'owner-1';
   const uploader = { id: 'user-1', email: 'owner@example.com' };
 
   function multerFile(overrides: Partial<Express.Multer.File> = {}) {
@@ -42,12 +50,21 @@ describe('MeetingFileService', () => {
     };
   }
 
+  function meetingFileRowWithMeeting(overrides: Record<string, unknown> = {}) {
+    return {
+      ...meetingFileRow(),
+      meeting: { id: meetingId, ownerId },
+      ...overrides,
+    };
+  }
+
   beforeEach(async () => {
     prisma = {
       meetingFile: {
         create: jest.fn(),
         findFirst: jest.fn(),
         findMany: jest.fn(),
+        delete: jest.fn(),
       },
       $transaction: jest.fn((operations: Promise<unknown>[]) =>
         Promise.all(operations),
@@ -162,6 +179,65 @@ describe('MeetingFileService', () => {
       await expect(
         service.getOneForMeeting(meetingId, 'missing-file'),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('deleteFile', () => {
+    const { unlink } = jest.requireMock<{ unlink: jest.Mock }>('fs/promises');
+
+    beforeEach(() => {
+      unlink.mockReset().mockResolvedValue(undefined);
+    });
+
+    it('deletes the row and unlinks the on-disk file when the caller is the uploader', async () => {
+      const row = meetingFileRowWithMeeting();
+      prisma.meetingFile.findFirst.mockResolvedValue(row);
+      prisma.meetingFile.delete.mockResolvedValue(row);
+
+      await service.deleteFile(meetingId, 'file-1', uploader.id);
+
+      expect(prisma.meetingFile.findFirst).toHaveBeenCalledWith({
+        where: { id: 'file-1', meetingId },
+        include: { meeting: true },
+      });
+      expect(prisma.meetingFile.delete).toHaveBeenCalledWith({
+        where: { id: 'file-1' },
+      });
+      expect(unlink).toHaveBeenCalledWith(
+        expect.stringContaining('generated-uuid'),
+      );
+    });
+
+    it('deletes a participant file when the caller is the meeting owner', async () => {
+      const row = meetingFileRowWithMeeting();
+      prisma.meetingFile.findFirst.mockResolvedValue(row);
+      prisma.meetingFile.delete.mockResolvedValue(row);
+
+      await service.deleteFile(meetingId, 'file-1', ownerId);
+
+      expect(prisma.meetingFile.delete).toHaveBeenCalledWith({
+        where: { id: 'file-1' },
+      });
+    });
+
+    it('throws ForbiddenException when the caller is neither the uploader nor the owner', async () => {
+      const row = meetingFileRowWithMeeting();
+      prisma.meetingFile.findFirst.mockResolvedValue(row);
+
+      await expect(
+        service.deleteFile(meetingId, 'file-1', 'someone-else'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.meetingFile.delete).not.toHaveBeenCalled();
+      expect(unlink).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the file does not belong to the meeting', async () => {
+      prisma.meetingFile.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.deleteFile(meetingId, 'missing-file', uploader.id),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.meetingFile.delete).not.toHaveBeenCalled();
     });
   });
 });

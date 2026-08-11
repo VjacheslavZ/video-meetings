@@ -1,10 +1,14 @@
+import { join } from 'path';
+import { unlink } from 'fs/promises';
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { MeetingFile, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { UPLOADS_DIR } from './upload/multer.config';
 
 type MeetingFileWithUploader = MeetingFile & { uploadedBy: User };
 
@@ -61,6 +65,28 @@ export class MeetingFileService {
       throw new NotFoundException('File not found');
     }
     return file;
+  }
+
+  async deleteFile(
+    meetingId: string,
+    fileId: string,
+    userId: string,
+  ): Promise<void> {
+    const file = await this.prisma.meetingFile.findFirst({
+      where: { id: fileId, meetingId },
+      include: { meeting: true },
+    });
+    if (!file) {
+      throw new NotFoundException('File not found');
+    }
+    if (file.uploadedById !== userId && file.meeting.ownerId !== userId) {
+      throw new ForbiddenException(
+        'Only the uploader or meeting owner can delete this file',
+      );
+    }
+
+    await this.prisma.meetingFile.delete({ where: { id: fileId } });
+    await unlink(join(UPLOADS_DIR, file.storedName));
   }
 
   private toResponse(file: MeetingFileWithUploader) {
