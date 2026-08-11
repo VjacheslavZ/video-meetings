@@ -1,5 +1,18 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Test users
+
+For manual/UI testing (including Claude Code's own Playwright-driven testing), use these pre-registered accounts instead of creating a new user each time. They exist in whatever database `apps/api` is currently pointed at (local Postgres via `docker compose up -d postgres` by default) — if that database is reset/recreated, re-register them with the same credentials via `POST /auth/register` (`apps/api`, see its `CLAUDE.md`).
+
+Having two accounts makes it possible to test meeting invites/participants (invite `test.user2@example.com` while logged in as `test.user1@example.com`, then switch sessions to accept/decline).
+
+| Email                    | Password       | Name          |
+| ------------------------ | -------------- | ------------- |
+| `test.user1@example.com` | `TestPass123!` | Test User One |
+| `test.user2@example.com` | `TestPass123!` | Test User Two |
+
+**Note:** these are throwaway local-dev credentials with no real data behind them — do not reuse this password for anything else, and do not point this setup at a shared/production database.
+
 ## Getting Started
 
 First, run the development server:
