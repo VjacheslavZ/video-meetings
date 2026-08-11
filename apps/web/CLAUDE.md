@@ -39,5 +39,6 @@ New routes follow the App Router convention of `src/app/<segment>/page.tsx`; aut
 
 ## Testing changes before calling them done
 
+- **Test accounts**: use the pre-registered accounts listed in `README.md` ("Test users" section) for manual/Playwright testing instead of registering a new user each time. Two accounts exist so invite/participant flows can be tested (accept/decline, invite/remove). If login fails because the local database was reset, re-register them via `POST /auth/register` on `apps/api` with the same email/password from the README so the credentials stay valid.
 - **Any UI change** (new component, styling, layout, copy, interaction state): before reporting the work as complete, visually test it with the Playwright MCP tools (`mcp__playwright__*`) — navigate to the affected page, take a screenshot, and exercise the changed states (hover/focus, error/empty/loading states, light and dark color scheme, mobile viewport). Also run the change through the `ui-ux-pro-max` skill to check it against its UX/accessibility guidelines. Do not claim a UI change works based on reading the code alone.
 - **Any new functionality** (not just UI — new flows, forms, API calls wired into the frontend): also drive it end-to-end with the Playwright MCP tools to confirm it actually works in the browser, not just that it type-checks or lints.
