@@ -63,3 +63,6 @@ Standard NestJS application (`@nestjs/cli` scaffold, `nest-cli.json` sets `sourc
 - `test/` — e2e tests, run against a separately built Nest application context (`test/jest-e2e.json` config), distinct from the `*.spec.ts` unit tests colocated in `src/`. `test/auth.e2e-spec.ts` and `test/meeting.e2e-spec.ts` exercise their endpoints end-to-end against the real Postgres database (no mocking) — each test registers a fresh user (random email) to stay isolated.
 
 Unit test config lives in the `jest` key of `package.json` (rootDir `src`, matches `*.spec.ts`); e2e config is the separate `test/jest-e2e.json` file. New features should follow Nest's convention of one module per domain area (`FooModule` with its own controller/service) registered in `imports` of `AppModule`, following the `AuthModule`/`MeetingModule` pattern. Routes that need the authenticated user should import `AuthModule` and use `@UseGuards(JwtAuthGuard)` + `@CurrentUser()`, as `MeetingModule` does — note that because the guard is resolved via Nest's DI when building a `TestingModule` for a protected controller, unit tests for such controllers need `.overrideGuard(JwtAuthGuard).useValue({ canActivate: () => true })` (see `meeting.controller.spec.ts`).
+
+## File upload
+Use this research for it: @docs/research-meeting-file-upload-technical-approach.md
