@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Alert,
@@ -15,18 +15,27 @@ import {
   Spinner,
   TextField,
 } from '@heroui/react';
-import { XIcon } from '@/components/icons';
+import { DownloadIcon, UploadIcon, XIcon } from '@/components/icons';
 import {
   acceptMeetingInvitation,
   addMeetingParticipants,
   ApiError,
   declineMeetingInvitation,
+  deleteMeetingFile,
+  downloadMeetingFile,
   getMeeting,
+  getMeetingFiles,
   removeMeetingParticipant,
+  uploadMeetingFiles,
   type Meeting,
+  type MeetingFile,
   type ParticipationStatus,
 } from '@/lib/api';
-import { clearAccessToken, getAccessToken } from '@/lib/auth';
+import {
+  clearAccessToken,
+  decodeAccessToken,
+  getAccessToken,
+} from '@/lib/auth';
 
 function formatMeetingDate(date: string): string {
   return new Intl.DateTimeFormat('en-US', {
@@ -57,6 +66,24 @@ function parseEmails(value: string): string[] {
     .filter((email) => email.length > 0);
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB'];
+  let value = bytes / 1024;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  return `${value.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function formatFileDate(date: string): string {
+  return new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' }).format(
+    new Date(date),
+  );
+}
+
 export default function MeetingDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -74,10 +101,30 @@ export default function MeetingDetailPage() {
   const [removingUserId, setRemovingUserId] = useState<string | null>(null);
   const [removeError, setRemoveError] = useState<string | null>(null);
 
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [files, setFiles] = useState<MeetingFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(true);
+  const [filesError, setFilesError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(
+    null,
+  );
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
+  const [deleteFileError, setDeleteFileError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     const token = getAccessToken();
     if (!token) return;
+
+    // Reading the token is synchronizing with an external system
+    // (localStorage), which can only happen client-side after mount —
+    // there's no async boundary to defer these updates behind.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setCurrentUserId(decodeAccessToken(token)?.sub ?? null);
 
     getMeeting(token, meetingId)
       .then((data) => {
@@ -105,6 +152,29 @@ export default function MeetingDetailPage() {
       cancelled = true;
     };
   }, [meetingId, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const token = getAccessToken();
+    if (!token) return;
+
+    getMeetingFiles(token, meetingId)
+      .then((data) => {
+        if (cancelled) return;
+        setFiles(data);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setFilesError('Failed to load files. Please try again.');
+      })
+      .finally(() => {
+        if (!cancelled) setFilesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [meetingId]);
 
   const withToken = (fn: (token: string) => Promise<Meeting>) => {
     const token = getAccessToken();
@@ -193,6 +263,72 @@ export default function MeetingDetailPage() {
       );
     } finally {
       setRemovingUserId(null);
+    }
+  };
+
+  const onUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const onFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files ? Array.from(e.target.files) : [];
+    e.target.value = '';
+    if (selected.length === 0) return;
+
+    setUploadError(null);
+    setIsUploading(true);
+    try {
+      const token = getAccessToken();
+      if (token) {
+        const uploaded = await uploadMeetingFiles(token, meetingId, selected);
+        setFiles((prev) => [...uploaded, ...prev]);
+      }
+    } catch (err) {
+      setUploadError(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to upload file(s). Please try again.',
+      );
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const onDownload = async (file: MeetingFile) => {
+    setDownloadError(null);
+    setDownloadingFileId(file.id);
+    try {
+      const token = getAccessToken();
+      if (token)
+        await downloadMeetingFile(token, meetingId, file.id, file.filename);
+    } catch (err) {
+      setDownloadError(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to download file. Please try again.',
+      );
+    } finally {
+      setDownloadingFileId(null);
+    }
+  };
+
+  const onDeleteFile = async (fileId: string) => {
+    setDeleteFileError(null);
+    setDeletingFileId(fileId);
+    try {
+      const token = getAccessToken();
+      if (token) {
+        await deleteMeetingFile(token, meetingId, fileId);
+        setFiles((prev) => prev.filter((file) => file.id !== fileId));
+      }
+    } catch (err) {
+      setDeleteFileError(
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to delete file. Please try again.',
+      );
+    } finally {
+      setDeletingFileId(null);
     }
   };
 
@@ -407,6 +543,160 @@ export default function MeetingDetailPage() {
               </p>
             </div>
           ) : null}
+        </Card>
+      </section>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-foreground text-sm font-semibold">Files</h2>
+        <Card className="flex flex-col gap-4 p-6">
+          {filesError ? (
+            <Alert status="danger">
+              <Alert.Indicator />
+              <Alert.Content>
+                <Alert.Title>{filesError}</Alert.Title>
+              </Alert.Content>
+            </Alert>
+          ) : null}
+
+          {filesLoading ? (
+            <div className="flex justify-center py-4">
+              <Spinner size="sm" />
+            </div>
+          ) : files.length === 0 ? (
+            <p className="text-muted py-2 text-center text-sm">No files yet.</p>
+          ) : (
+            <ul className="divide-border flex flex-col divide-y">
+              {files.map((file) => {
+                const canDelete =
+                  isOwner || file.uploadedById === currentUserId;
+                return (
+                  <li
+                    key={file.id}
+                    className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="min-w-0">
+                      <p
+                        className="text-foreground truncate text-sm"
+                        title={file.filename}
+                      >
+                        {file.filename}
+                      </p>
+                      <p className="text-muted truncate text-xs">
+                        {file.uploaderEmail} · {formatFileSize(file.size)} ·{' '}
+                        {formatFileDate(file.createdAt)}
+                      </p>
+                    </div>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <Button
+                        isIconOnly
+                        aria-label={`Download ${file.filename}`}
+                        variant="ghost"
+                        size="sm"
+                        isDisabled={downloadingFileId === file.id}
+                        onPress={() => onDownload(file)}
+                      >
+                        <DownloadIcon className="size-4" />
+                      </Button>
+                      {canDelete ? (
+                        <AlertDialog>
+                          <Button
+                            isIconOnly
+                            aria-label={`Delete ${file.filename}`}
+                            variant="ghost"
+                            size="sm"
+                            isDisabled={deletingFileId === file.id}
+                          >
+                            <XIcon className="size-4" />
+                          </Button>
+                          <AlertDialog.Backdrop>
+                            <AlertDialog.Container>
+                              <AlertDialog.Dialog className="sm:max-w-[400px]">
+                                <AlertDialog.CloseTrigger />
+                                <AlertDialog.Header>
+                                  <AlertDialog.Icon status="danger" />
+                                  <AlertDialog.Heading>
+                                    Delete file?
+                                  </AlertDialog.Heading>
+                                </AlertDialog.Header>
+                                <AlertDialog.Body>
+                                  <p>
+                                    Delete <strong>{file.filename}</strong>?
+                                    This cannot be undone.
+                                  </p>
+                                </AlertDialog.Body>
+                                <AlertDialog.Footer>
+                                  <Button slot="close" variant="tertiary">
+                                    Cancel
+                                  </Button>
+                                  <Button
+                                    slot="close"
+                                    variant="danger"
+                                    onPress={() => onDeleteFile(file.id)}
+                                  >
+                                    Delete
+                                  </Button>
+                                </AlertDialog.Footer>
+                              </AlertDialog.Dialog>
+                            </AlertDialog.Container>
+                          </AlertDialog.Backdrop>
+                        </AlertDialog>
+                      ) : null}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <div className="flex flex-col gap-2 border-t pt-4">
+            {downloadError ? (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>{downloadError}</Alert.Title>
+                </Alert.Content>
+              </Alert>
+            ) : null}
+            {deleteFileError ? (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>{deleteFileError}</Alert.Title>
+                </Alert.Content>
+              </Alert>
+            ) : null}
+            {uploadError ? (
+              <Alert status="danger">
+                <Alert.Indicator />
+                <Alert.Content>
+                  <Alert.Title>{uploadError}</Alert.Title>
+                </Alert.Content>
+              </Alert>
+            ) : null}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={onFilesSelected}
+            />
+            <Button
+              variant="outline"
+              isPending={isUploading}
+              onPress={onUploadClick}
+            >
+              {({ isPending }: { isPending: boolean }) => (
+                <>
+                  {isPending ? (
+                    <Spinner color="current" size="sm" />
+                  ) : (
+                    <UploadIcon className="size-4" />
+                  )}
+                  {isPending ? 'Uploading…' : 'Upload files'}
+                </>
+              )}
+            </Button>
+          </div>
         </Card>
       </section>
     </div>

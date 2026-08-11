@@ -208,3 +208,91 @@ export async function removeMeetingParticipant(
 
   return res.json();
 }
+
+export interface MeetingFile {
+  id: string;
+  filename: string;
+  mimeType: string;
+  size: number;
+  uploadedById: string;
+  uploaderEmail: string;
+  createdAt: string;
+}
+
+export async function uploadMeetingFiles(
+  accessToken: string,
+  meetingId: string,
+  files: File[],
+): Promise<MeetingFile[]> {
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append('files', file);
+  }
+
+  const res = await fetch(`${API_URL}/meetings/${meetingId}/files`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${accessToken}` },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to upload file(s).');
+  }
+
+  return res.json();
+}
+
+export async function getMeetingFiles(
+  accessToken: string,
+  meetingId: string,
+): Promise<MeetingFile[]> {
+  const res = await fetch(`${API_URL}/meetings/${meetingId}/files`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to load files.');
+  }
+
+  return res.json();
+}
+
+export async function deleteMeetingFile(
+  accessToken: string,
+  meetingId: string,
+  fileId: string,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/meetings/${meetingId}/files/${fileId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to delete file.');
+  }
+}
+
+export async function downloadMeetingFile(
+  accessToken: string,
+  meetingId: string,
+  fileId: string,
+  filename: string,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/meetings/${meetingId}/files/${fileId}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!res.ok) {
+    throw await buildApiError(res, 'Failed to download file.');
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
