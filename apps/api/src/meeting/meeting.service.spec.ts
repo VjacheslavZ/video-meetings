@@ -19,6 +19,7 @@ describe('MeetingService', () => {
       findMany: jest.Mock;
       findFirst: jest.Mock;
       findUnique: jest.Mock;
+      count: jest.Mock;
     };
     meetingParticipant: {
       findUnique: jest.Mock;
@@ -49,6 +50,7 @@ describe('MeetingService', () => {
         findMany: jest.fn(),
         findFirst: jest.fn(),
         findUnique: jest.fn(),
+        count: jest.fn(),
       },
       meetingParticipant: {
         findUnique: jest.fn(),
@@ -200,6 +202,30 @@ describe('MeetingService', () => {
         role: 'PARTICIPANT',
         myStatus: 'ACCEPTED',
       });
+    });
+  });
+
+  describe('hasAccess', () => {
+    it('returns true when the meeting matches the owner-or-participant filter', async () => {
+      prisma.meeting.count.mockResolvedValue(1);
+
+      const result = await service.hasAccess('meeting-1', ownerId);
+
+      expect(prisma.meeting.count).toHaveBeenCalledWith({
+        where: {
+          id: 'meeting-1',
+          OR: [{ ownerId }, { participants: { some: { userId: ownerId } } }],
+        },
+      });
+      expect(result).toBe(true);
+    });
+
+    it('returns false when no matching meeting is found', async () => {
+      prisma.meeting.count.mockResolvedValue(0);
+
+      const result = await service.hasAccess('meeting-1', 'another-user');
+
+      expect(result).toBe(false);
     });
   });
 

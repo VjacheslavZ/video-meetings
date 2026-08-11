@@ -20,6 +20,7 @@ model User {
   accounts      Account[]
   meetings      Meeting[]
   participation MeetingParticipant[]
+  uploadedFiles MeetingFile[]
 
   @@unique([email])
   @@map("user")
@@ -90,6 +91,7 @@ model Meeting {
   ownerId      String
   owner        User                 @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   participants MeetingParticipant[]
+  files        MeetingFile[]
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
 
@@ -116,4 +118,21 @@ model MeetingParticipant {
   @@unique([meetingId, userId])
   @@index([userId])
   @@map("meeting_participant")
+}
+
+model MeetingFile {
+  id           String   @id @default(uuid())
+  meetingId    String
+  meeting      Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  uploadedById String
+  uploadedBy   User     @relation(fields: [uploadedById], references: [id], onDelete: Cascade)
+  filename     String
+  storedName   String   @unique
+  mimeType     String
+  size         Int
+  createdAt    DateTime @default(now())
+
+  @@index([meetingId])
+  @@index([uploadedById])
+  @@map("meeting_file")
 }
