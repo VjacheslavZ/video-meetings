@@ -55,6 +55,16 @@ export class MeetingService {
     return meetings.map((meeting) => this.toResponse(meeting, userId));
   }
 
+  async hasAccess(meetingId: string, userId: string): Promise<boolean> {
+    const count = await this.prisma.meeting.count({
+      where: {
+        id: meetingId,
+        OR: [{ ownerId: userId }, { participants: { some: { userId } } }],
+      },
+    });
+    return count > 0;
+  }
+
   async findOne(id: string, userId: string) {
     const meeting = await this.prisma.meeting.findFirst({
       where: {

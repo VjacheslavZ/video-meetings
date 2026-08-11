@@ -19,6 +19,9 @@ coverage/
 .env.local
 .env.*.local
 
+# uploaded meeting files
+uploads/
+
 # logs
 *.log
 npm-debug.log*
