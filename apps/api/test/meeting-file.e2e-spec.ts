@@ -331,4 +331,107 @@ describe('Meeting files (e2e)', () => {
         .expect(401);
     });
   });
+
+  describe('DELETE /meetings/:meetingId/files/:fileId', () => {
+    async function uploadFile(
+      uploader: RegisteredUser,
+      meetingId: string,
+      filename = 'notes.txt',
+    ): Promise<string> {
+      const response = await request(app.getHttpServer())
+        .post(`/meetings/${meetingId}/files`)
+        .set('Authorization', `Bearer ${uploader.accessToken}`)
+        .attach('files', Buffer.from('some bytes'), {
+          filename,
+          contentType: 'text/plain',
+        })
+        .expect(201);
+      return (response.body as MeetingFileResponse[])[0].id;
+    }
+
+    it('lets the uploader delete their own file, removing it from the list', async () => {
+      const owner = await registerUser();
+      const meetingId = await createMeeting(owner);
+      const fileId = await uploadFile(owner, meetingId);
+
+      await request(app.getHttpServer())
+        .delete(`/meetings/${meetingId}/files/${fileId}`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(200);
+
+      const listResponse = await request(app.getHttpServer())
+        .get(`/meetings/${meetingId}/files`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(200);
+      expect(listResponse.body).toEqual([]);
+    });
+
+    it("lets the meeting owner delete a participant's file", async () => {
+      const owner = await registerUser();
+      const participant = await registerUser();
+      const meetingId = await createMeeting(owner, [participant.email]);
+      const fileId = await uploadFile(participant, meetingId);
+
+      await request(app.getHttpServer())
+        .delete(`/meetings/${meetingId}/files/${fileId}`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(200);
+
+      const listResponse = await request(app.getHttpServer())
+        .get(`/meetings/${meetingId}/files`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(200);
+      expect(listResponse.body).toEqual([]);
+    });
+
+    it('returns 403 for a participant who is neither the uploader nor the owner', async () => {
+      const owner = await registerUser();
+      const uploaderParticipant = await registerUser();
+      const otherParticipant = await registerUser();
+      const meetingId = await createMeeting(owner, [
+        uploaderParticipant.email,
+        otherParticipant.email,
+      ]);
+      const fileId = await uploadFile(uploaderParticipant, meetingId);
+
+      await request(app.getHttpServer())
+        .delete(`/meetings/${meetingId}/files/${fileId}`)
+        .set('Authorization', `Bearer ${otherParticipant.accessToken}`)
+        .expect(403);
+
+      const listResponse = await request(app.getHttpServer())
+        .get(`/meetings/${meetingId}/files`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(200);
+      expect(listResponse.body).toHaveLength(1);
+    });
+
+    it('returns 404 for a user who is neither owner nor participant', async () => {
+      const owner = await registerUser();
+      const unrelated = await registerUser();
+      const meetingId = await createMeeting(owner);
+      const fileId = await uploadFile(owner, meetingId);
+
+      await request(app.getHttpServer())
+        .delete(`/meetings/${meetingId}/files/${fileId}`)
+        .set('Authorization', `Bearer ${unrelated.accessToken}`)
+        .expect(404);
+    });
+
+    it('returns 404 for a file id that does not belong to the meeting', async () => {
+      const owner = await registerUser();
+      const meetingId = await createMeeting(owner);
+
+      await request(app.getHttpServer())
+        .delete(`/meetings/${meetingId}/files/${randomUUID()}`)
+        .set('Authorization', `Bearer ${owner.accessToken}`)
+        .expect(404);
+    });
+
+    it('rejects requests without an access token', async () => {
+      await request(app.getHttpServer())
+        .delete(`/meetings/${randomUUID()}/files/${randomUUID()}`)
+        .expect(401);
+    });
+  });
 });
